@@ -308,19 +308,35 @@ def init():
     ]
     curriculum_cards.extend(instructor_review_cards)
 
-    # Migrate previously seeded cross-product calculation cards in-place. The
-    # subject/front duplicate key would otherwise leave the old vector-only prompt.
-    cross_rows=c.execute("SELECT id,front,hint FROM cards WHERE topic='12.4 Cross Product' AND card_type='Calculation'").fetchall()
+    # Migrate previously seeded cross-product calculation cards in-place.
+    # Use a deliberately simple parser: locate the first two numeric 3-vectors
+    # in an older cross-product prompt, then rebuild the prompt as a determinant.
+    cross_rows=c.execute(
+        "SELECT id,front,hint FROM cards WHERE topic='12.4 Cross Product' AND card_type='Calculation'"
+    ).fetchall()
+    vector_pat=re.compile(
+        r'[⟨<]\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*[⟩>]'
+    )
     for row in cross_rows:
         old_front=str(row['front'])
-        m=re.search(r'Compute\\s+\\$?\\\\mathbf\\s*([A-Za-z])\\\\times\\\\mathbf\\s*([A-Za-z])\\$?\\s+for\\s+\\$?\\\\mathbf\\s*\\1\\s*=\\s*[⟨<]\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\s*[⟩>]\\$?\\s+and\\s+\\$?\\\\mathbf\\s*\\2\\s*=\\s*[⟨<]\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\s*[⟩>]\\$?',old_front,re.I)
-        if m:
-            u,v=m.group(1),m.group(2); av=tuple(map(int,m.group(3,4,5))); bv=tuple(map(int,m.group(6,7,8)))
+        # Only migrate older vector-only computational prompts.
+        if 'cross' not in old_front.lower() and '\\times' not in old_front and '×' not in old_front:
+            continue
+        triples=vector_pat.findall(old_front)
+        if len(triples) >= 2:
+            av=tuple(map(int,triples[0]))
+            bv=tuple(map(int,triples[1]))
             det=cross_product_determinant_latex(av,bv)
             expansion=cross_product_expansion_latex(av,bv)
-            new_front=rf'Compute $\\mathbf {u}\\times\\mathbf {v}$: $${det}$$'
-            new_hint=rf'After you answer, check the cofactor expansion: $${expansion}$$ Remember the signs $+,-,+$.'
-            c.execute('UPDATE cards SET front=?,hint=? WHERE id=?',(new_front,new_hint,int(row['id'])))
+            new_front=rf'Compute the cross product using the determinant setup: $${det}$$'
+            new_hint=(
+                rf'Expand with cofactors: $${expansion}$$ '
+                r'Remember the signs $+,-,+$.'
+            )
+            c.execute(
+                'UPDATE cards SET front=?,hint=? WHERE id=?',
+                (new_front,new_hint,int(row['id']))
+            )
 
     for subject,top,ctype,front,back,hint,choices in curriculum_cards:
         if not c.execute('SELECT 1 FROM cards WHERE subject=? AND front=?',(subject,front)).fetchone():
@@ -660,12 +676,18 @@ def option_markup(raw):
     compact=s.lower().replace(' ','')
     formula_cues=[
         '=', '^', '/', '·', '|', '<', '>', 'sqrt', 'sin', 'cos', 'tan',
-        'theta', 'pi', 'r(t)', 'f(x)', 'g(x)', 'dot', 'cross'
+        'theta', 'pi', 'r(t)', 'f(x)', 'g(x)', 'dot', 'cross',
+        '\\langle', '\\rangle', '\\frac', '\\mathbf', '\\times',
+        '\\cdot', '\\begin', '\\end'
     ]
     looks_formula = any(cue in compact for cue in formula_cues)
 
     # Formula-like choices should be rendered as one coherent LaTeX expression.
     if looks_formula:
+        # Stored choices can already be valid LaTeX (for example
+        # \langle 1,-5,3\rangle). Preserve those commands exactly.
+        if re.search(r'\\(?:langle|rangle|frac|mathbf|times|cdot|begin|end)\b', s):
+            return f'${s}$'
         # Normalize common word operators before passing to the math formatter.
         s=re.sub(r'\bdot\b', '·', s, flags=re.I)
         s=re.sub(r'\bcross\b', r'\\times', s, flags=re.I)

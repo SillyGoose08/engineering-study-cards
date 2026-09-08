@@ -91,3 +91,9 @@ Replaced tuple-based natural sort keys with string-only zero-padded keys for com
 - Hints/feedback expand the determinant so it is visually clear which components multiply.
 - The negative j cofactor is shown explicitly.
 - Added determinant-form calculation cards to the Question Browser/custom-deck pool.
+
+## Cross-product migration + MC vector formatting hotfix
+- Replaced the brittle migration regex that crashed Streamlit with a safe numeric-vector parser.
+- Existing cross-product calculation cards still migrate to determinant presentation.
+- LaTeX vector choices using `\\langle ... \\rangle` now render as proper angle-bracket vectors.
+- Repaired accidental form-feed corruption in older `\\frac` strings.
