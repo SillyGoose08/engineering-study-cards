@@ -1,4 +1,4 @@
-import html, sqlite3, random
+import html, sqlite3, random, re
 from datetime import datetime, timezone
 from pathlib import Path
 import pandas as pd
@@ -30,7 +30,20 @@ button[kind="primary"]{background:linear-gradient(90deg,#5368ff,#762cff)!importa
 .flash{background:linear-gradient(145deg,#fff,#f1f6ff);color:#0b1730;border:1px solid #957eff;border-radius:20px;padding:28px 31px;min-height:300px;box-shadow:0 0 0 1px rgba(45,196,255,.3),0 22px 48px rgba(0,0,0,.2)}.pill{display:inline-block;padding:7px 12px;border-radius:99px;background:#e7e0ff;color:#563cd6;font-size:12px;font-weight:800;margin-right:7px}.pill.blue{background:#dceeff;color:#0c63bf}.count{float:right;color:#5c6c83;font-size:12px;font-weight:700}.question{font-size:28px;line-height:1.34;font-weight:850;margin-top:28px;max-width:780px}.rule{height:1px;background:#d9e0ec;margin:24px 0 18px}.hint{color:#65738b;font-style:italic;line-height:1.55;font-size:14px}.answer{border:1px solid rgba(43,212,127,.72);background:linear-gradient(90deg,rgba(7,63,52,.58),rgba(5,45,48,.58));border-radius:15px;padding:20px 22px;margin-top:17px}.answer strong{color:#3be18e;font-size:19px}.answer p{color:#cfe5df;margin:.4rem 0 0;font-size:13px}
 .side{background:linear-gradient(180deg,#0f2036,#0a182a);border:1px solid var(--border);border-radius:15px;padding:16px 17px;margin-bottom:14px}.stitle{font-weight:850;margin-bottom:11px}.big{font-size:24px;font-weight:850;color:#9d90ff}.small{font-size:11px;color:var(--muted)}.qitem{padding:9px 0;border-bottom:1px solid rgba(45,67,94,.55)}.qname{font-size:12px;font-weight:750}.high{color:#ff6175}.med{color:#ffc247}.low{color:#2edc84}.prog{height:10px;border-radius:99px;background:#1b2c47;overflow:hidden;margin-top:10px}.prog>div{height:100%;background:linear-gradient(90deg,#5268ff,#9149ff)}.quote{margin-top:30px;border-left:3px solid #6b50ff;background:rgba(92,71,255,.06);padding:12px 13px;color:#aab7ca;font-style:italic;font-size:12px;line-height:1.6;border-radius:0 10px 10px 0}
 [data-testid="stDataFrame"]{border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.st-key-flashcard{background:linear-gradient(145deg,#fff,#f1f6ff);color:#0b1730;border:1px solid #957eff;border-radius:20px;padding:26px 30px 22px;min-height:300px;box-shadow:0 0 0 1px rgba(45,196,255,.3),0 22px 48px rgba(0,0,0,.2);margin-bottom:14px}
+.st-key-flashcard [data-testid="stMarkdownContainer"]{color:#0b1730}
+.st-key-flashcard .katex{font-size:1.45em}
+.st-key-flashcard .katex-display{margin:1.2rem 0;text-align:left}
+.choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0 6px}.choice-box{background:#f7f9fd;border:1px solid #d5deec;border-radius:12px;padding:12px 14px;color:#14213d;min-height:54px;font-size:15px}.choice-letter{display:inline-block;color:#6948df;font-weight:900;margin-right:7px}
+@media(max-width:760px){.choice-grid{grid-template-columns:1fr}}
 @media(max-width:1000px){.metrics{grid-template-columns:repeat(2,1fr)}.hero .badge{display:none}.question{font-size:23px}}
+
+/* Quiz / flip-card upgrade */
+.mode-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:2px 0 16px}.mode-chip{border:1px solid var(--border);background:#0b1b2f;border-radius:12px;padding:10px 12px;text-align:center;color:#cdd8e8;font-size:12px;font-weight:800}.record-card{background:linear-gradient(135deg,#27143e,#14213d);border:1px solid #7c5cff;border-radius:15px;padding:15px 17px}.record-num{font-size:30px;font-weight:900;color:#ffd768}.record-sub{font-size:11px;color:#aebbd0}.session-banner{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:8px 0 16px}.session-stat{background:#0d1c30;border:1px solid var(--border);border-radius:13px;padding:12px 14px}.session-stat strong{display:block;font-size:22px}.session-stat span{font-size:10px;color:var(--muted)}
+.flip-shell{perspective:1200px}.flip-face{animation:flipIn .42s ease both;transform-style:preserve-3d}.flip-face.back{animation:flipBack .48s ease both}@keyframes flipIn{from{transform:rotateY(-88deg);opacity:.25}to{transform:rotateY(0);opacity:1}}@keyframes flipBack{from{transform:rotateY(88deg);opacity:.25}to{transform:rotateY(0);opacity:1}}@media(prefers-reduced-motion:reduce){.flip-face,.flip-face.back{animation:none}}
+.quiz-answer{background:linear-gradient(180deg,#0d1f34,#0a1727);border:1px solid var(--border);border-radius:14px;padding:16px;margin:10px 0}.correct-glow{border-color:#2bd47f;box-shadow:0 0 0 1px rgba(43,212,127,.15)}.wrong-glow{border-color:#ff5a6f;box-shadow:0 0 0 1px rgba(255,90,111,.15)}
+.fill-help{font-size:12px;color:var(--muted);margin:-4px 0 8px}.perfect{color:#ffd768!important}.objective-note{background:rgba(118,87,255,.08);border:1px solid rgba(118,87,255,.35);padding:10px 12px;border-radius:10px;color:#c9d2e4;font-size:12px}
+@media(max-width:900px){.session-banner,.mode-strip{grid-template-columns:repeat(2,1fr)}}
 </style>''',unsafe_allow_html=True)
 
 def now(): return datetime.now(timezone.utc).isoformat()
@@ -38,9 +51,12 @@ def conn():
     c=sqlite3.connect(DB,check_same_thread=False);c.row_factory=sqlite3.Row;return c
 
 def init():
-    c=conn();c.executescript('''CREATE TABLE IF NOT EXISTS cards(id INTEGER PRIMARY KEY AUTOINCREMENT,subject TEXT,topic TEXT,card_type TEXT,front TEXT,back TEXT,hint TEXT,created_at TEXT);CREATE TABLE IF NOT EXISTS attempts(id INTEGER PRIMARY KEY AUTOINCREMENT,card_id INTEGER,result TEXT,confidence INTEGER,attempted_at TEXT);''');c.commit()
+    c=conn();c.executescript('''CREATE TABLE IF NOT EXISTS cards(id INTEGER PRIMARY KEY AUTOINCREMENT,subject TEXT,topic TEXT,card_type TEXT,front TEXT,back TEXT,hint TEXT,created_at TEXT);CREATE TABLE IF NOT EXISTS attempts(id INTEGER PRIMARY KEY AUTOINCREMENT,card_id INTEGER,result TEXT,confidence INTEGER,attempted_at TEXT,answer_mode TEXT);CREATE TABLE IF NOT EXISTS records(key TEXT PRIMARY KEY,value INTEGER DEFAULT 0);''');c.commit()
     cols=[r[1] for r in c.execute('PRAGMA table_info(cards)').fetchall()]
     if 'choices' not in cols: c.execute('ALTER TABLE cards ADD COLUMN choices TEXT');c.commit()
+    acols=[r[1] for r in c.execute('PRAGMA table_info(attempts)').fetchall()]
+    if 'answer_mode' not in acols: c.execute('ALTER TABLE attempts ADD COLUMN answer_mode TEXT');c.commit()
+    c.execute("INSERT OR IGNORE INTO records(key,value) VALUES ('best_quiz_streak',0)");c.commit()
     if c.execute('SELECT COUNT(*) FROM cards').fetchone()[0]==0:
         cards=[
         ('Calc 3','Vector integrals','Recognition','What do you do when integrating a vector-valued function?','Integrate each component separately.','Treat i, j, and k components as separate ordinary integrals.'),
@@ -72,13 +88,46 @@ def stats():
     d['mastery']=d.apply(lambda r:0 if r.attempts==0 else max(0,min(100,100-r.weakness)),axis=1)
     return d
 
-def record(cid,result,conf):
-    c=conn();c.execute('INSERT INTO attempts(card_id,result,confidence,attempted_at) VALUES (?,?,?,?)',(int(cid),result,int(conf),now()));c.commit();c.close()
+def record(cid,result,conf,answer_mode='Flashcards'):
+    c=conn();c.execute('INSERT INTO attempts(card_id,result,confidence,attempted_at,answer_mode) VALUES (?,?,?,?,?)',(int(cid),result,int(conf),now(),answer_mode));c.commit();c.close()
 
-def pick(mode,subject,topic,exclude=None):
+def get_best_quiz_streak():
+    c=conn();r=c.execute("SELECT value FROM records WHERE key='best_quiz_streak'").fetchone();c.close();return int(r[0]) if r else 0
+
+def save_best_quiz_streak(n):
+    c=conn();c.execute("INSERT INTO records(key,value) VALUES ('best_quiz_streak',?) ON CONFLICT(key) DO UPDATE SET value=MAX(value,excluded.value)",(int(n),));c.commit();c.close()
+
+def is_fillable(r):
+    ans=str(r.back).strip()
+    if len(ans)>34:return False
+    bad=['because ','integrate ','use ','requires ','cross product:','dot product:','separate ','collision ','arbitrary constant']
+    return not any(x in ans.lower() for x in bad)
+
+def normalize_answer(x):
+    x=str(x).strip().lower()
+    x=x.replace('π','pi').replace('−','-').replace('×','*').replace('·','*')
+    x=x.replace('\\','').replace(' ','').replace('{','(').replace('}',')')
+    x=x.replace('^(','^(')
+    x=x.replace('arctan','atan').replace('tan^-1','atan').replace('tan^(-1)','atan')
+    x=x.replace('ln|x|','ln(abs(x))').replace('|x|','abs(x)')
+    x=x.replace('+c','+c').replace('c+','+c')
+    x=x.replace('*','')
+    return x
+
+def answers_match(user,expected):
+    a,b=normalize_answer(user),normalize_answer(expected)
+    if a==b:return True
+    try:
+        return abs(float(a)-float(b)) <= max(1e-4,abs(float(b))*0.01)
+    except: return False
+
+def pick(mode,subject,topic,answer_style='Flashcards',exclude=None):
     d=stats();
     if subject!='All': d=d[d.subject==subject]
     if topic!='All': d=d[d.topic==topic]
+    if answer_style=='Multiple Choice': d=d[d.choices.notna() & (d.choices.astype(str).str.strip()!='')]
+    elif answer_style=='Fill in Blank': d=d[d.apply(is_fillable,axis=1)]
+    elif answer_style=='Mixed Quiz': d=d[(d.choices.notna() & (d.choices.astype(str).str.strip()!='')) | d.apply(is_fillable,axis=1)]
     if exclude and len(d)>1: d=d[d.id!=exclude]
     if d.empty:return None
     if mode=='Weakest First':
@@ -95,25 +144,109 @@ def streak():
     return n
 
 def esc(x):return html.escape(str(x),quote=True)
+
+def _strip_outer_parens(x):
+    x=x.strip()
+    if len(x)>=2 and x[0]=='(' and x[-1]==')':
+        depth=0;ok=True
+        for i,ch in enumerate(x):
+            if ch=='(': depth+=1
+            elif ch==')': depth-=1
+            if depth==0 and i<len(x)-1: ok=False;break
+        if ok:return x[1:-1]
+    return x
+
+def expr_latex(raw):
+    """Convert the compact notation stored in the deck into readable LaTeX."""
+    import re
+    s=str(raw).strip()
+    # coordinate pairs / ordered pairs
+    if re.fullmatch(r'\([^()]+,[^()]+\)',s):
+        a,b=[x.strip() for x in s[1:-1].split(',',1)]
+        return rf"\left({expr_latex(a)},\,{expr_latex(b)}\right)"
+    # top-level fraction
+    depth=0
+    for i,ch in enumerate(s):
+        if ch=='(': depth+=1
+        elif ch==')': depth-=1
+        elif ch=='/' and depth==0:
+            left,right=s[:i].strip(),s[i+1:].strip()
+            return rf"\frac{{{expr_latex(left)}}}{{{expr_latex(_strip_outer_parens(right))}}}"
+    # common leading fractional coefficient such as (1/2)e^(2x)
+    m=re.match(r'^\(([^()/]+)/([^()/]+)\)(.+)$',s)
+    if m:
+        return rf"\frac{{{expr_latex(m.group(1))}}}{{{expr_latex(m.group(2))}}}{expr_latex(m.group(3))}"
+    # recursively format function calls
+    funcs={'sqrt':'\\sqrt','ln':'\\ln','sin':'\\sin','cos':'\\cos','tan':'\\tan','sec':'\\sec','csc':'\\csc','cot':'\\cot','arctan':'\\arctan','arcsin':'\\arcsin'}
+    for name,cmd in funcs.items():
+        pat=re.compile(rf'{name}\(([^()]*)\)')
+        while pat.search(s):
+            s=pat.sub(lambda m: (rf'{cmd}{{{expr_latex(m.group(1))}}}' if name=='sqrt' else rf'{cmd}\left({expr_latex(m.group(1))}\right)'),s)
+    s=s.replace('theta',r'\theta').replace('pi',r'\pi')
+    # e^(...) and generic parenthesized exponents
+    s=re.sub(r'e\^\(([^()]*)\)',lambda m: rf'e^{{{expr_latex(m.group(1))}}}',s)
+    s=re.sub(r'([A-Za-z0-9\\]+)\^\(([^()]*)\)',lambda m: rf'{m.group(1)}^{{{expr_latex(m.group(2))}}}',s)
+    s=re.sub(r'\^(-?\d+)',r'^{\1}',s)
+    s=re.sub(r'\^([A-Za-z])',r'^{\1}',s)
+    s=s.replace('·',r'\cdot ')
+    # readable function notation and constants
+    s=s.replace(' + C','+C').replace('+ C','+C').replace(' - C','-C')
+    return s
+
+def question_markup(raw):
+    """Return (kind, value): kind is 'latex' for display math or 'md' for mixed prose."""
+    import re
+    q=str(raw).strip()
+    # derivative questions
+    m=re.fullmatch(r'd/dx\((.+)\)\s*=\s*\?',q)
+    if m:return 'latex',rf"\frac{{d}}{{dx}}\left({expr_latex(m.group(1))}\right)=\ ?"
+    m=re.fullmatch(r'd/dx\[(.+)\]\s*=\s*\?',q)
+    if m:return 'latex',rf"\frac{{d}}{{dx}}\left[{expr_latex(m.group(1))}\right]=\ ?"
+    # integrals
+    m=re.fullmatch(r'∫\s*(.+)\s+d([A-Za-z])\s*=\s*\?',q)
+    if m:return 'latex',rf"\int {expr_latex(m.group(1))}\,d{m.group(2)}=\ ?"
+    # simple equation questions
+    if q.endswith('= ?') and not q.startswith(('Which','For','At','In')):
+        lhs=q[:-3].strip()
+        return 'latex',rf"{expr_latex(lhs)}=\ ?"
+    # mixed prose replacements
+    q=q.replace('d/dx[(x^2+1)^5]',r'$\frac{d}{dx}\left[(x^2+1)^5\right]$')
+    q=q.replace('[F(x)]_a^b',r'$\left[F(x)\right]_a^b$')
+    q=q.replace('e^(-1)',r'$e^{-1}$').replace('e^(-x)',r'$e^{-x}$')
+    q=q.replace('0° (0 rad)',r'$0^\circ\;(0\text{ rad})$')
+    q=q.replace('90° (pi/2)',r'$90^\circ\;(\pi/2)$')
+    q=q.replace('(cos theta, sin theta)',r'$(\cos\theta,\sin\theta)$')
+    return 'md',q
+
+def option_markup(raw):
+    s=str(raw).strip()
+    # prose answers should stay prose
+    prose_markers=['rule','constant','upper bound','x-intercept','positive','negative','undefined','automatic']
+    if any(x in s.lower() for x in prose_markers) and not any(ch in s for ch in '^/=()'):
+        return esc(s)
+    return f'${expr_latex(s)}$'
 def elapsed(s):
     t=datetime.fromisoformat(s);q=max(0,int((datetime.now(timezone.utc)-t).total_seconds()));return f'{q//60}:{q%60:02d}'
 
 init()
-for k,v in {'card_id':None,'show_answer':False,'show_hint':False,'sig':None,'session_start':now(),'session_seen':0,'target':12,'last_card':None,'mc_choice':None}.items():
+for k,v in {'card_id':None,'show_answer':False,'show_hint':False,'sig':None,'session_start':now(),'session_seen':0,'target':12,'last_card':None,'mc_choice':None,'answer_style':'Flashcards','session_correct':0,'session_quiz_answered':0,'perfect_streak':0,'fill_value':''}.items():
     if k not in st.session_state:st.session_state[k]=v
 
 with st.sidebar:
     st.markdown('<div class="brand"><div class="brain">🧠</div><div><h2>Study Cards</h2><div class="sub">Study smarter. Master faster.</div></div></div>',unsafe_allow_html=True)
     st.markdown('### Study Controls')
-    mode=st.radio('Study mode',['Weakest First','Missed Only','Random'])
+    answer_style=st.radio('Answer style',['Flashcards','Multiple Choice','Fill in Blank','Mixed Quiz'],index=['Flashcards','Multiple Choice','Fill in Blank','Mixed Quiz'].index(st.session_state.answer_style),help='Perfect streaks count only objective quiz answers: Multiple Choice and Fill in Blank.')
+    st.session_state.answer_style=answer_style
+    mode=st.radio('Card order',['Weakest First','Missed Only','Random'])
     cd=cards_df();subjects=['All']+sorted(cd.subject.unique());subject=st.selectbox('Subject',subjects)
     fd=cd if subject=='All' else cd[cd.subject==subject];topics=['All']+sorted(fd.topic.unique());topic=st.selectbox('Topic',topics)
-    if st.button('▶ Start / New Session',type='primary',use_container_width=True):
-        st.session_state.session_start=now();st.session_state.session_seen=0;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.rerun()
+    if st.button('▶ Start a New Session',type='primary',use_container_width=True):
+        st.session_state.session_start=now();st.session_state.session_seen=0;st.session_state.session_correct=0;st.session_state.session_quiz_answered=0;st.session_state.perfect_streak=0;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.rerun()
     st.caption('Weakest First automatically prioritizes the cards you miss most often.')
+    st.markdown(f'<div class="record-card"><div class="record-sub">🏆 PERFECT STREAK RECORD</div><div class="record-num">{get_best_quiz_streak()}</div><div class="record-sub">objective answers correct in a row</div></div>',unsafe_allow_html=True)
     st.markdown('<div class="quote">“A little progress every day adds up to big results.”</div>',unsafe_allow_html=True)
 
-sig=(mode,subject,topic)
+sig=(mode,subject,topic,answer_style)
 if sig!=st.session_state.sig:st.session_state.sig=sig;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False
 
 st.markdown('<div class="brand"><div class="brain">🧠</div><div><h2>Engineering Study Cards</h2><div class="sub">Study smarter. Master faster.</div></div></div>',unsafe_allow_html=True)
@@ -121,55 +254,114 @@ t1,t2,t3,t4=st.tabs(['🏠 Study','▥ Progress','▱ Decks','⚙ Settings'])
 
 with t1:
     st.markdown('<div class="hero"><div class="badge">🎯 Same Effort.<br>Bigger Results.</div><h1>Engineering Study Cards</h1><p>Adaptive flashcards that focus on what you need most.</p></div>',unsafe_allow_html=True)
-    d=stats();sc=d.copy();
+    d=stats();sc=d.copy()
     if subject!='All':sc=sc[sc.subject==subject]
     if topic!='All':sc=sc[sc.topic==topic]
     a=int(sc.attempts.sum()) if len(sc) else 0;c=int(sc.correct.sum()) if len(sc) else 0;ac=100*c/a if a else 0;w=int((sc.weakness>=60).sum()) if len(sc) else 0;m=float(sc.mastery.mean()) if len(sc) else 0
-    st.markdown(f'<div class="metrics"><div class="mcard"><div class="mlabel">📗 Total Attempts</div><div class="mval">{a}</div><div class="mfoot">Every answer improves your model</div></div><div class="mcard"><div class="mlabel">🎯 Accuracy</div><div class="mval">{ac:.0f}%</div><div class="mfoot">Correct across this filter</div></div><div class="mcard"><div class="mlabel">⚠️ Weak Cards</div><div class="mval">{w}</div><div class="mfoot">Priority score ≥ 60</div></div><div class="mcard"><div class="mlabel">📊 Average Mastery</div><div class="mval">{m:.0f}%</div><div class="mfoot">Adaptive mastery score</div></div></div>',unsafe_allow_html=True)
+    st.markdown(f'<div class="metrics"><div class="mcard"><div class="mlabel">📗 Total Attempts</div><div class="mval">{a}</div><div class="mfoot">Every answer improves your model</div></div><div class="mcard"><div class="mlabel">🎯 Accuracy</div><div class="mval">{ac:.0f}%</div><div class="mfoot">Correct across this filter</div></div><div class="mcard"><div class="mlabel">⚠️ Weak Cards</div><div class="mval">{w}</div><div class="mfoot">Priority score ≥ 60</div></div><div class="mcard"><div class="mlabel">🏆 Best Perfect Streak</div><div class="mval perfect">{get_best_quiz_streak()}</div><div class="mfoot">MCQ + fill-in answers</div></div></div>',unsafe_allow_html=True)
+    st.markdown(f'<div class="session-banner"><div class="session-stat"><strong>{answer_style}</strong><span>Current answer style</span></div><div class="session-stat"><strong>{st.session_state.session_correct}/{st.session_state.session_quiz_answered}</strong><span>Quiz score this session</span></div><div class="session-stat"><strong class="perfect">{st.session_state.perfect_streak} 🔥</strong><span>Current perfect streak</span></div><div class="session-stat"><strong>{elapsed(st.session_state.session_start)}</strong><span>Session time</span></div></div>',unsafe_allow_html=True)
+
     if st.session_state.card_id is None:
-        r=pick(mode,subject,topic,st.session_state.last_card)
+        r=pick(mode,subject,topic,answer_style,st.session_state.last_card)
         if r is not None:st.session_state.card_id=int(r.id)
     cur=stats();cur=cur[cur.id==st.session_state.card_id]
-    if cur.empty:st.info('No cards match the current filters.')
+    if cur.empty:
+        st.info('No cards match this combination. Try another subject/topic or answer style.')
     else:
         r=cur.iloc[0];left,right=st.columns([3.25,1],gap='large')
         with left:
-            idx=min(st.session_state.session_seen+1,st.session_state.target);hint=esc(r.hint) if st.session_state.show_hint else 'Try to name the method or recognition cue before revealing the answer.'
-            st.markdown(f'<div class="flash"><span class="count">Card {idx} of {st.session_state.target} ☆</span><span class="pill">{esc(r.subject)}</span><span class="pill blue">{esc(r.topic)}</span><div class="question">{esc(r.front)}</div><div class="rule"></div><div class="hint">💡 {hint}</div></div>',unsafe_allow_html=True)
-            def advance(result,conf):
-                record(r.id,result,conf);st.session_state.last_card=int(r.id);st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.session_seen+=1;st.rerun()
-            is_mc=(str(r.card_type)=='Multiple Choice' and 'choices' in r.index and pd.notna(r['choices']) and str(r['choices']).strip())
-            if is_mc:
-                choices=str(r['choices']).split('|||')
-                st.markdown('#### Choose the best answer')
-                choice=st.radio('Answer choices',choices,index=None,key=f"mcq_{int(r.id)}",label_visibility='collapsed')
-                x,y=st.columns(2)
-                if x.button('💡 Hide Hint' if st.session_state.show_hint else '💡 Show Hint',use_container_width=True):st.session_state.show_hint=not st.session_state.show_hint;st.rerun()
-                if y.button('✓ Submit Answer',type='primary',use_container_width=True,disabled=choice is None):st.session_state.mc_choice=choice;st.session_state.show_answer=True;st.rerun()
-                if st.session_state.show_answer and st.session_state.mc_choice is not None:
-                    correct=(st.session_state.mc_choice==str(r.back)); icon='✅' if correct else '❌'; msg='Correct!' if correct else f'Not quite — you chose {esc(st.session_state.mc_choice)}.'
-                    st.markdown(f'<div class="answer"><strong>{icon} {msg}</strong><p>Correct answer: <b>{esc(r.back)}</b><br>{esc(r.hint)}</p></div>',unsafe_allow_html=True)
-                    a1,a2=st.columns(2)
-                    if correct:
-                        if a1.button('🔵 Got it',use_container_width=True):advance('Correct',3)
-                        if a2.button('✅ Easy / automatic',use_container_width=True):advance('Correct',5)
+            idx=min(st.session_state.session_seen+1,st.session_state.target)
+            hint=esc(r.hint) if st.session_state.show_hint else 'Try to identify the rule or pattern before answering.'
+            qkind,qvalue=question_markup(r.front)
+
+            def objective_result(correct):
+                st.session_state.session_quiz_answered += 1
+                if correct:
+                    st.session_state.session_correct += 1
+                    st.session_state.perfect_streak += 1
+                    save_best_quiz_streak(st.session_state.perfect_streak)
+                else:
+                    st.session_state.perfect_streak = 0
+
+            def advance(result,conf,ans_mode):
+                record(r.id,result,conf,ans_mode)
+                st.session_state.last_card=int(r.id);st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.session_state.session_seen+=1;st.rerun()
+
+            # FLASHCARD MODE — self-rated, no objective streak scoring.
+            if answer_style=='Flashcards':
+                face='back' if st.session_state.show_answer else ''
+                with st.container(key='flashcard'):
+                    st.markdown(f'<div class="flip-shell"><div class="flip-face {face}"><span class="count">Card {idx} of {st.session_state.target} ☆</span><span class="pill">{esc(r.subject)}</span><span class="pill blue">{esc(r.topic)}</span></div></div>',unsafe_allow_html=True)
+                    st.markdown('<div style="height:12px"></div>',unsafe_allow_html=True)
+                    if not st.session_state.show_answer:
+                        if qkind=='latex': st.latex(qvalue)
+                        else: st.markdown(f'### {qvalue}')
+                        st.markdown('<div class="rule"></div>',unsafe_allow_html=True)
+                        st.markdown(f'<div class="hint">💡 {hint}</div>',unsafe_allow_html=True)
                     else:
-                        if a1.button('❌ Need to see this again',use_container_width=True):advance('Wrong',1)
-                        if a2.button('🟡 I understand now',use_container_width=True):advance('Wrong',2)
-            else:
+                        st.markdown('#### Answer')
+                        st.latex(expr_latex(r.back)) if any(ch in str(r.back) for ch in '^/()') else st.markdown(f'### {esc(r.back)}')
+                        st.caption(str(r.hint))
                 x,y=st.columns(2)
                 if x.button('💡 Hide Hint' if st.session_state.show_hint else '💡 Show Hint',use_container_width=True):st.session_state.show_hint=not st.session_state.show_hint;st.rerun()
                 if not st.session_state.show_answer:
-                    if y.button('✨ Reveal Answer',type='primary',use_container_width=True):st.session_state.show_answer=True;st.rerun()
+                    if y.button('🔄 Flip Card',type='primary',use_container_width=True):st.session_state.show_answer=True;st.rerun()
                 else:
-                    st.markdown(f'<div class="answer"><strong>✅ {esc(r.back)}</strong><p>Rate how automatic this felt. Your rating changes how often this card returns.</p></div>',unsafe_allow_html=True)
+                    if y.button('↩ Flip Back',use_container_width=True):st.session_state.show_answer=False;st.rerun()
                     q1,q2,q3,q4=st.columns(4)
-                    if q1.button('❌ I missed it\nAgain',use_container_width=True):advance('Wrong',1)
-                    if q2.button('🟡 Still learning\nHard',use_container_width=True):advance('Wrong',2)
-                    if q3.button('🔵 I got it\nMedium',use_container_width=True):advance('Correct',3)
-                    if q4.button('✅ Easy\nMove on',use_container_width=True):advance('Correct',5)
+                    if q1.button('❌ Missed',use_container_width=True):advance('Wrong',1,'Flashcards')
+                    if q2.button('🟡 Hard',use_container_width=True):advance('Wrong',2,'Flashcards')
+                    if q3.button('🔵 Got it',use_container_width=True):advance('Correct',3,'Flashcards')
+                    if q4.button('✅ Easy',use_container_width=True):advance('Correct',5,'Flashcards')
+                st.markdown('<div class="objective-note">Flashcard ratings improve the weakness tracker, but do not affect your Perfect Streak record.</div>',unsafe_allow_html=True)
+
+            else:
+                # Choose objective rendering. Mixed Quiz uses MCQ when choices exist, otherwise fill-in.
+                has_mc=(pd.notna(r.get('choices',None)) and str(r.get('choices','')).strip())
+                render_mc = answer_style=='Multiple Choice' or (answer_style=='Mixed Quiz' and has_mc)
+                if answer_style=='Fill in Blank':render_mc=False
+                with st.container(key='flashcard'):
+                    st.markdown(f'<span class="count">Card {idx} of {st.session_state.target} ☆</span><span class="pill">{esc(r.subject)}</span><span class="pill blue">{esc(r.topic)}</span>',unsafe_allow_html=True)
+                    st.markdown('<div style="height:12px"></div>',unsafe_allow_html=True)
+                    if qkind=='latex': st.latex(qvalue)
+                    else: st.markdown(f'### {qvalue}')
+                    st.markdown('<div class="rule"></div>',unsafe_allow_html=True)
+                    st.markdown(f'<div class="hint">💡 {hint}</div>',unsafe_allow_html=True)
+
+                if render_mc and has_mc:
+                    choices=str(r['choices']).split('|||');letters=['A','B','C','D'][:len(choices)]
+                    st.markdown('#### Choose the best answer')
+                    cols=st.columns(2)
+                    for i,ch in enumerate(choices):
+                        with cols[i%2]: st.markdown(f'**{letters[i]}.** &nbsp; {option_markup(ch)}')
+                    selected_letter=st.radio('Select A, B, C, or D',letters,index=None,key=f"mcq_{int(r.id)}",horizontal=True,label_visibility='collapsed')
+                    choice=choices[letters.index(selected_letter)] if selected_letter in letters else None
+                    x,y=st.columns(2)
+                    if x.button('💡 Hide Hint' if st.session_state.show_hint else '💡 Show Hint',use_container_width=True):st.session_state.show_hint=not st.session_state.show_hint;st.rerun()
+                    if y.button('✓ Submit Answer',type='primary',use_container_width=True,disabled=choice is None):
+                        correct=(choice==str(r.back));objective_result(correct);st.session_state.mc_choice=choice;st.session_state.show_answer=True;st.rerun()
+                    if st.session_state.show_answer and st.session_state.mc_choice is not None:
+                        correct=(st.session_state.mc_choice==str(r.back));cls='correct-glow' if correct else 'wrong-glow';icon='✅ Correct!' if correct else '❌ Not quite'
+                        st.markdown(f'<div class="quiz-answer {cls}"><strong>{icon}</strong></div>',unsafe_allow_html=True)
+                        st.markdown('**Correct answer:**');st.latex(expr_latex(r.back)) if any(ch in str(r.back) for ch in '^/()') else st.markdown(f'### {esc(r.back)}')
+                        if st.button('Next Question →',type='primary',use_container_width=True):advance('Correct' if correct else 'Wrong',5 if correct else 1,'Multiple Choice')
+                else:
+                    st.markdown('#### Type your answer')
+                    st.caption('Simple equivalent formatting is accepted. Example: `5x^4`, `1/e`, `sqrt(2)/2`.')
+                    typed=st.text_input('Answer',key=f"fill_{int(r.id)}",placeholder='Type the answer here…',label_visibility='collapsed')
+                    x,y=st.columns(2)
+                    if x.button('💡 Hide Hint' if st.session_state.show_hint else '💡 Show Hint',use_container_width=True):st.session_state.show_hint=not st.session_state.show_hint;st.rerun()
+                    if y.button('✓ Check Answer',type='primary',use_container_width=True,disabled=not typed.strip()):
+                        correct=answers_match(typed,r.back);objective_result(correct);st.session_state.fill_value=typed;st.session_state.show_answer=True;st.rerun()
+                    if st.session_state.show_answer and st.session_state.fill_value:
+                        correct=answers_match(st.session_state.fill_value,r.back);cls='correct-glow' if correct else 'wrong-glow';icon='✅ Correct!' if correct else '❌ Not quite'
+                        st.markdown(f'<div class="quiz-answer {cls}"><strong>{icon}</strong><div class="small">Your answer: {esc(st.session_state.fill_value)}</div></div>',unsafe_allow_html=True)
+                        st.markdown('**Correct answer:**');st.latex(expr_latex(r.back)) if any(ch in str(r.back) for ch in '^/()') else st.markdown(f'### {esc(r.back)}')
+                        if st.button('Next Question →',type='primary',use_container_width=True):advance('Correct' if correct else 'Wrong',5 if correct else 1,'Fill in Blank')
         with right:
-            prog=min(100,100*st.session_state.session_seen/max(1,st.session_state.target));st.markdown(f'<div class="side"><div class="stitle">⏱ Current Session</div><div style="display:flex;justify-content:space-between"><div><div class="big">{elapsed(st.session_state.session_start)}</div><div class="small">Time</div></div><div><div class="big">{streak()} 🔥</div><div class="small">Streak</div></div></div></div>',unsafe_allow_html=True)
+            prog=min(100,100*st.session_state.session_seen/max(1,st.session_state.target))
+            st.markdown(f'<div class="side"><div class="stitle">⏱ Current Session</div><div style="display:flex;justify-content:space-between"><div><div class="big">{elapsed(st.session_state.session_start)}</div><div class="small">Time</div></div><div><div class="big perfect">{st.session_state.perfect_streak} 🔥</div><div class="small">Perfect streak</div></div></div></div>',unsafe_allow_html=True)
+            st.markdown(f'<div class="side"><div class="stitle">🏆 Record</div><div class="big perfect">{get_best_quiz_streak()}</div><div class="small">Best objective streak</div></div>',unsafe_allow_html=True)
             qs=sc.sort_values('weakness',ascending=False).head(4);items=''
             for _,z in qs.iterrows():
                 cl='high' if z.weakness>=70 else ('med' if z.weakness>=50 else 'low');pr='High Priority' if z.weakness>=70 else ('Medium Priority' if z.weakness>=50 else 'Low Priority');items+=f'<div class="qitem"><div class="qname">{esc(z.topic)}</div><div class="{cl}" style="font-size:10px;font-weight:800">{pr}</div></div>'
@@ -185,12 +377,12 @@ with t2:
 with t3:
     st.markdown('## Deck Manager')
     with st.form('add'):
-        a,b,c=st.columns(3);subj=a.text_input('Subject',value='Calc 3');top=b.text_input('Topic');ctype=c.selectbox('Card type',['Recognition','Formula','Process','Concept','Practice']);front=st.text_area('Front / question');back=st.text_area('Back / answer');hint=st.text_input('Hint (optional)')
+        a,b,c=st.columns(3);subj=a.text_input('Subject',value='Calc 3');top=b.text_input('Topic');ctype=c.selectbox('Card type',['Flashcard','Multiple Choice','Fill in Blank','Recognition','Formula','Process','Concept','Practice']);front=st.text_area('Front / question');back=st.text_area('Back / answer');hint=st.text_input('Hint (optional)');choices=st.text_input('Multiple-choice options (optional, separate with |)')
         if st.form_submit_button('Add card',type='primary'):
             if subj.strip() and top.strip() and front.strip() and back.strip():
-                c0=conn();c0.execute('INSERT INTO cards(subject,topic,card_type,front,back,hint,created_at) VALUES (?,?,?,?,?,?,?)',(subj.strip(),top.strip(),ctype,front.strip(),back.strip(),hint.strip(),now()));c0.commit();c0.close();st.success('Card added.');st.rerun()
+                c0=conn();c0.execute('INSERT INTO cards(subject,topic,card_type,front,back,hint,created_at,choices) VALUES (?,?,?,?,?,?,?,?)',(subj.strip(),top.strip(),ctype,front.strip(),back.strip(),hint.strip(),now(),'|||'.join([x.strip() for x in choices.split('|') if x.strip()]) if choices.strip() else None));c0.commit();c0.close();st.success('Card added.');st.rerun()
             else:st.error('Subject, topic, question, and answer are required.')
     st.dataframe(cards_df()[['subject','topic','card_type','front','back']],use_container_width=True,hide_index=True)
 
 with t4:
-    st.markdown('## Settings');st.session_state.target=st.slider('Cards per study session',5,40,int(st.session_state.target));st.info('Progress is currently stored in local SQLite. Streamlit Community Cloud can reset local files during rebuilds. A future version can move progress to durable cloud storage.')
+    st.markdown('## Settings');st.session_state.target=st.slider('Cards per study session',5,40,int(st.session_state.target));st.info('Perfect streaks only count objectively graded Multiple Choice and Fill in Blank answers. Flashcard self-ratings still train the weakness model, but never affect the streak record. Progress is currently stored in local SQLite; Streamlit Community Cloud can reset local files during rebuilds.')
