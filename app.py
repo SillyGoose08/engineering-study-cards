@@ -100,8 +100,38 @@ def now(): return datetime.now(timezone.utc).isoformat()
 def conn():
     c=sqlite3.connect(DB,check_same_thread=False);c.row_factory=sqlite3.Row;return c
 
+def save_bug_report(card_id, subject, topic, question, issue_type, note):
+    c=conn()
+    c.execute(
+        "INSERT INTO bug_reports(card_id,subject,topic,question,issue_type,note,status,reported_at) VALUES (?,?,?,?,?,?,?,?)",
+        (int(card_id),str(subject),str(topic),str(question),str(issue_type),str(note).strip(),'Open',now())
+    )
+    c.commit();c.close()
+
+def bug_reports_df():
+    c=conn()
+    try:
+        return pd.read_sql_query("SELECT * FROM bug_reports ORDER BY id DESC",c)
+    finally:
+        c.close()
+
+def report_issue_ui(card_id, subject, topic, question, key_prefix):
+    with st.popover('🐛 Report Issue',use_container_width=True):
+        st.caption(f'Question ID {int(card_id)} · {subject} · {topic}')
+        with st.form(f'report_form_{key_prefix}_{int(card_id)}',clear_on_submit=True):
+            issue_type=st.selectbox(
+                'Issue type',
+                ['Formatting / math rendering','Wrong answer or explanation','Bad multiple-choice options','Duplicate / too repetitive','Question wording / unclear','Other'],
+                key=f'report_type_{key_prefix}_{int(card_id)}'
+            )
+            note=st.text_area('Quick note (optional)',placeholder='Example: determinant brackets look broken on iPad.',key=f'report_note_{key_prefix}_{int(card_id)}')
+            submitted=st.form_submit_button('Save to Bug Log',type='primary',use_container_width=True)
+            if submitted:
+                save_bug_report(card_id,subject,topic,question,issue_type,note)
+                st.success('Saved to the Bug Log.')
+
 def init():
-    c=conn();c.executescript('''CREATE TABLE IF NOT EXISTS cards(id INTEGER PRIMARY KEY AUTOINCREMENT,subject TEXT,topic TEXT,card_type TEXT,front TEXT,back TEXT,hint TEXT,created_at TEXT);CREATE TABLE IF NOT EXISTS attempts(id INTEGER PRIMARY KEY AUTOINCREMENT,card_id INTEGER,result TEXT,confidence INTEGER,attempted_at TEXT,answer_mode TEXT);CREATE TABLE IF NOT EXISTS records(key TEXT PRIMARY KEY,value INTEGER DEFAULT 0);''');c.commit()
+    c=conn();c.executescript('''CREATE TABLE IF NOT EXISTS cards(id INTEGER PRIMARY KEY AUTOINCREMENT,subject TEXT,topic TEXT,card_type TEXT,front TEXT,back TEXT,hint TEXT,created_at TEXT);CREATE TABLE IF NOT EXISTS attempts(id INTEGER PRIMARY KEY AUTOINCREMENT,card_id INTEGER,result TEXT,confidence INTEGER,attempted_at TEXT,answer_mode TEXT);CREATE TABLE IF NOT EXISTS records(key TEXT PRIMARY KEY,value INTEGER DEFAULT 0);CREATE TABLE IF NOT EXISTS bug_reports(id INTEGER PRIMARY KEY AUTOINCREMENT,card_id INTEGER,subject TEXT,topic TEXT,question TEXT,issue_type TEXT,note TEXT,status TEXT DEFAULT 'Open',reported_at TEXT);''');c.commit()
     cols=[r[1] for r in c.execute('PRAGMA table_info(cards)').fetchall()]
     if 'choices' not in cols: c.execute('ALTER TABLE cards ADD COLUMN choices TEXT');c.commit()
     acols=[r[1] for r in c.execute('PRAGMA table_info(attempts)').fetchall()]
@@ -1080,7 +1110,7 @@ sig=(mode,exam,subject,topic,answer_style)
 if sig!=st.session_state.sig:st.session_state.sig=sig;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.session_seen_ids=[]
 
 st.markdown('<div class="brand"><div class="brain">🧠</div><div><h2>Engineering Study Cards</h2><div class="sub">Study smarter. Master faster.</div></div></div>',unsafe_allow_html=True)
-t1,t2,t3,t4,t5=st.tabs(['🏠 Study','🔎 Question Browser','▥ Progress','▱ Decks','⚙ Settings'])
+t1,t2,t3,t4,t5,t6=st.tabs(['🏠 Study','🔎 Question Browser','🐛 Bug Log','▥ Progress','▱ Decks','⚙ Settings'])
 
 with t1:
     st.markdown('<div class="hero"><div class="badge">🎯 Same Effort.<br>Bigger Results.</div><h1>Engineering Study Cards</h1><p>Adaptive flashcards that focus on what you need most.</p></div>',unsafe_allow_html=True)
@@ -1130,6 +1160,8 @@ with t1:
             def advance(result,conf,ans_mode):
                 record(r.id,result,conf,ans_mode)
                 st.session_state.last_card=int(r.id);st.session_state.session_seen_ids=list(dict.fromkeys(st.session_state.session_seen_ids+[int(r.id)]));st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.mc_options=None;st.session_state.mc_options_card=None;st.session_state.fill_value='';st.session_state.session_seen+=1;st.rerun()
+
+            report_issue_ui(int(r.id),r.subject,r.topic,r.front,'study')
 
             # FLASHCARD MODE — self-rated, no objective streak scoring.
             if answer_style=='Flashcards':
@@ -1333,6 +1365,7 @@ with t2:
                         if st.button('＋ Add',key=f'browser_add_{cid}',type='primary',use_container_width=True):
                             st.session_state.browser_selected_ids=selected_ids+[cid]
                             st.rerun()
+                    report_issue_ui(cid,br.subject,br.topic,br.front,'browser')
 
                 st.markdown('<div style="height:8px"></div>',unsafe_allow_html=True)
                 is_graph=str(br.front).startswith('GRAPH_MATCH|')
@@ -1411,12 +1444,28 @@ with t2:
             st.info('Click ＋ Add on any question above to build a custom quiz.')
 
 with t3:
+    st.markdown('## 🐛 Bug Log')
+    st.caption('Development notes you flag while studying. Nothing here changes the question bank automatically.')
+    reports=bug_reports_df()
+    if reports.empty:
+        st.info('No issues reported yet. Use 🐛 Report Issue on a question whenever you spot something to refine.')
+    else:
+        open_count=int((reports.status=='Open').sum())
+        a,b=st.columns(2);a.metric('Open reports',open_count);b.metric('Total reports',len(reports))
+        show=reports[['id','card_id','subject','topic','issue_type','note','reported_at','status']].copy()
+        show.columns=['Report','Question ID','Subject','Topic','Issue','Note','Reported','Status']
+        st.dataframe(show,use_container_width=True,hide_index=True)
+        csv=reports.to_csv(index=False).encode('utf-8')
+        st.download_button('⬇ Export Bug Log (CSV)',csv,'engineering_study_cards_bug_log.csv','text/csv',use_container_width=True)
+        st.caption('Tip: export this CSV before a Streamlit rebuild. Community Cloud local storage can be reset during redeploys.')
+
+with t4:
     st.markdown('## Progress & Weakness Tracker');st.caption('Higher weakness means the card returns more aggressively.')
     d=stats();g=d.groupby(['subject','topic'],as_index=False).agg(attempts=('attempts','sum'),correct=('correct','sum'),wrong=('wrong','sum'),avg_weakness=('weakness','mean'),avg_mastery=('mastery','mean'));g['accuracy']=g.apply(lambda r:100*r.correct/r.attempts if r.attempts else 0,axis=1);g['Topic']=g.subject+' · '+g.topic
     a,b=st.columns(2);a.bar_chart(g.set_index('Topic')['avg_mastery'],horizontal=True);b.dataframe(g.sort_values('avg_weakness',ascending=False)[['subject','topic','attempts','wrong','accuracy','avg_weakness']],use_container_width=True,hide_index=True)
     st.markdown('### Cards needing the most work');st.dataframe(d.sort_values(['weakness','wrong'],ascending=False)[['subject','topic','front','attempts','correct','wrong','accuracy','weakness']].head(20),use_container_width=True,hide_index=True)
 
-with t4:
+with t5:
     st.markdown('## Deck Manager')
     with st.form('add'):
         a,b,c=st.columns(3);subj=a.text_input('Subject',value='Calc 3');top=b.text_input('Topic');ctype=c.selectbox('Card type',['Flashcard','Multiple Choice','Fill in Blank','Recognition','Formula','Process','Concept','Practice']);front=st.text_area('Front / question');back=st.text_area('Back / answer');hint=st.text_input('Hint (optional)');choices=st.text_input('Multiple-choice options (optional, separate with |)')
@@ -1426,7 +1475,7 @@ with t4:
             else:st.error('Subject, topic, question, and answer are required.')
     st.dataframe(cards_df()[['subject','topic','card_type','front','back']],use_container_width=True,hide_index=True)
 
-with t5:
+with t6:
     st.markdown('## Settings')
     if not st.session_state.custom_quiz_active:
         st.session_state.target=st.slider('Cards per study session',5,40,int(st.session_state.target))

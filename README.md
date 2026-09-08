@@ -97,3 +97,9 @@ Replaced tuple-based natural sort keys with string-only zero-padded keys for com
 - Existing cross-product calculation cards still migrate to determinant presentation.
 - LaTeX vector choices using `\\langle ... \\rangle` now render as proper angle-bracket vectors.
 - Repaired accidental form-feed corruption in older `\\frac` strings.
+
+## Bug-report workflow
+
+Questions now include a **🐛 Report Issue** control in both Study mode and the Question Browser. Reports capture the question ID, subject, topic, question text, issue category, optional note, and timestamp. The **🐛 Bug Log** tab lets you review reports and export them as CSV before making code changes.
+
+Bug reports are intentionally review-only: they do **not** modify questions or application code automatically. The current deployment still uses Streamlit Community Cloud local storage, so export the Bug Log CSV before a rebuild/redeploy if you want a durable copy of the accumulated reports.
