@@ -1100,13 +1100,19 @@ with t2:
         )
         browse_pool=browse_pool[mask]
 
-    # Sort text columns naturally first, then numeric card ID.
-    # A single pandas sort key cannot safely return tuples for text columns
-    # and integers for the ID column on newer pandas/Python versions.
+    # Sort text columns with a string-only natural key. Pandas/Python 3.14 can
+    # fail when tuple sort keys contain mixed ints/strings, so zero-pad digits
+    # into one comparable string instead.
+    def browser_sort_key(value):
+        s=str(value).lower()
+        return re.sub(r'\d+', lambda m: m.group(0).zfill(8), s)
     browse_pool=browse_pool.copy()
-    browse_pool['_subject_sort']=browse_pool['subject'].astype(str).map(natural_sort_key)
-    browse_pool['_topic_sort']=browse_pool['topic'].astype(str).map(natural_sort_key)
-    browse_pool=browse_pool.sort_values(['_subject_sort','_topic_sort','id']).drop(columns=['_subject_sort','_topic_sort']).reset_index(drop=True)
+    browse_pool['_subject_sort']=browse_pool['subject'].astype(str).map(browser_sort_key)
+    browse_pool['_topic_sort']=browse_pool['topic'].astype(str).map(browser_sort_key)
+    browse_pool=browse_pool.sort_values(
+        ['_subject_sort','_topic_sort','id'],
+        kind='stable'
+    ).drop(columns=['_subject_sort','_topic_sort']).reset_index(drop=True)
 
     if browse_pool.empty:
         st.info('No questions match those browser filters.')

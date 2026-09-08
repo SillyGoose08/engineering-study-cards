@@ -65,3 +65,6 @@ Fixed the math-notation replacement crash caused by Python interpreting LaTeX ba
 - Reveal the correct answer/explanation only when wanted.
 - Add/remove questions while browsing and launch the selected set as a custom quiz.
 - Custom quizzes preserve selection order, do not repeat questions, and show a completion score.
+
+## Question Browser sorting hotfix 2
+Replaced tuple-based natural sort keys with string-only zero-padded keys for compatibility with pandas on Python 3.14.
