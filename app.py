@@ -1063,7 +1063,7 @@ with t1:
 
 with t2:
     st.markdown('## Question Browser')
-    st.caption('Browse the deck exactly as questions will appear, then add any questions you want to a custom quiz.')
+    st.caption('Scroll through all matching questions in presentation format and add any of them to your custom quiz.')
 
     all_cards=cards_df().copy()
     b1,b2,b3=st.columns([1.25,1.25,1.5])
@@ -1100,12 +1100,10 @@ with t2:
         )
         browse_pool=browse_pool[mask]
 
-    # Sort text columns with a string-only natural key. Pandas/Python 3.14 can
-    # fail when tuple sort keys contain mixed ints/strings, so zero-pad digits
-    # into one comparable string instead.
     def browser_sort_key(value):
         s=str(value).lower()
         return re.sub(r'\d+', lambda m: m.group(0).zfill(8), s)
+
     browse_pool=browse_pool.copy()
     browse_pool['_subject_sort']=browse_pool['subject'].astype(str).map(browser_sort_key)
     browse_pool['_topic_sort']=browse_pool['topic'].astype(str).map(browser_sort_key)
@@ -1114,97 +1112,113 @@ with t2:
         kind='stable'
     ).drop(columns=['_subject_sort','_topic_sort']).reset_index(drop=True)
 
+    selected_ids=[int(x) for x in st.session_state.browser_selected_ids]
+
+    top1,top2,top3=st.columns([1.3,1.3,2])
+    top1.metric('Matching questions',len(browse_pool))
+    top2.metric('Custom quiz selected',len(selected_ids))
+    if selected_ids:
+        if top3.button(f'▶ Start Custom Quiz ({len(selected_ids)})',type='primary',use_container_width=True,key='browser_start_top'):
+            st.session_state.custom_quiz_ids=list(selected_ids)
+            st.session_state.custom_quiz_active=True
+            st.session_state.answer_style='Mixed Quiz'
+            reset_study_session()
+            st.session_state.target=len(selected_ids)
+            st.rerun()
+
     if browse_pool.empty:
         st.info('No questions match those browser filters.')
     else:
-        # Keep browser position valid as filters change.
-        st.session_state.browser_index=max(0,min(int(st.session_state.browser_index),len(browse_pool)-1))
-        n=len(browse_pool)
-        nav1,nav2,nav3,nav4=st.columns([1,1,2.2,1])
-        if nav1.button('← Previous',use_container_width=True,disabled=st.session_state.browser_index<=0):
-            st.session_state.browser_index-=1;st.rerun()
-        if nav2.button('Next →',use_container_width=True,disabled=st.session_state.browser_index>=n-1):
-            st.session_state.browser_index+=1;st.rerun()
-        jump=nav3.number_input('Jump to question',min_value=1,max_value=n,value=st.session_state.browser_index+1,step=1,key='browser_jump')
-        if int(jump)-1 != st.session_state.browser_index:
-            st.session_state.browser_index=int(jump)-1;st.rerun()
-        nav4.metric('Matching',n)
+        st.markdown('### Browse Questions')
+        st.caption('Each card below previews how the question will appear during study.')
 
-        br=browse_pool.iloc[st.session_state.browser_index]
-        st.caption(f"Question {st.session_state.browser_index+1} of {n} · Card ID {int(br.id)}")
+        for idx,br in browse_pool.iterrows():
+            cid=int(br.id)
+            is_selected=cid in selected_ids
 
-        # Presentation preview
-        with st.container(border=True):
-            st.markdown(f'<span class="pill">{esc(br.subject)}</span><span class="pill blue">{esc(br.topic)}</span>',unsafe_allow_html=True)
-            st.markdown('<div style="height:12px"></div>',unsafe_allow_html=True)
-            is_graph=str(br.front).startswith('GRAPH_MATCH|')
-            qkind,qvalue=question_markup(br.front)
-            if is_graph:
-                st.markdown('### Match the equation to the graph')
-                render_shape_graph(str(br.front).split('|',1)[1])
-            elif qkind=='latex':
-                st.latex(qvalue)
-            else:
-                st.markdown(f'### {qvalue}')
+            with st.container(border=True):
+                h1,h2=st.columns([7,1.4])
+                with h1:
+                    st.markdown(
+                        f'<span class="pill">{esc(br.subject)}</span>'
+                        f'<span class="pill blue">{esc(br.topic)}</span>'
+                        f'<span style="margin-left:10px;font-size:12px;color:#94a3b8;">Question {idx+1} · ID {cid}</span>',
+                        unsafe_allow_html=True
+                    )
+                with h2:
+                    if is_selected:
+                        if st.button('✓ Added',key=f'browser_remove_{cid}',use_container_width=True):
+                            st.session_state.browser_selected_ids=[x for x in selected_ids if x!=cid]
+                            st.rerun()
+                    else:
+                        if st.button('＋ Add',key=f'browser_add_{cid}',type='primary',use_container_width=True):
+                            st.session_state.browser_selected_ids=selected_ids+[cid]
+                            st.rerun()
 
-            preview_short=is_short_fill(br)
-            if preview_short:
-                st.markdown('#### Type your answer')
-                st.text_input('Preview answer',placeholder='Student response field',disabled=True,key=f'preview_fill_{int(br.id)}',label_visibility='collapsed')
-            else:
-                opts_key=str(int(br.id))
-                if opts_key not in st.session_state.browser_options:
-                    st.session_state.browser_options[opts_key]=objective_choices(br,browse_exam,browse_subject,browse_topic)
-                preview_choices=list(st.session_state.browser_options[opts_key])
-                letters=['A','B','C','D'][:len(preview_choices)]
-                st.markdown('#### Choose the best answer')
-                for i,ch in enumerate(preview_choices):
-                    st.markdown(f"**{letters[i]}.** &nbsp;&nbsp; {option_markup(ch)}")
-                st.radio('Preview selection',letters,index=None,key=f'preview_mc_{int(br.id)}',horizontal=True,label_visibility='collapsed',disabled=True)
+                st.markdown('<div style="height:8px"></div>',unsafe_allow_html=True)
+                is_graph=str(br.front).startswith('GRAPH_MATCH|')
+                qkind,qvalue=question_markup(br.front)
 
-        p1,p2,p3=st.columns([1.2,1.2,2])
-        selected_ids=[int(x) for x in st.session_state.browser_selected_ids]
-        is_selected=int(br.id) in selected_ids
-        if not is_selected:
-            if p1.button('➕ Add to Custom Quiz',type='primary',use_container_width=True):
-                st.session_state.browser_selected_ids=selected_ids+[int(br.id)]
-                st.rerun()
-        else:
-            if p1.button('✓ Selected',disabled=True,use_container_width=True):
-                pass
-            if p2.button('Remove',use_container_width=True):
-                st.session_state.browser_selected_ids=[x for x in selected_ids if x!=int(br.id)]
-                st.rerun()
+                if is_graph:
+                    st.markdown('### Match the equation to the graph')
+                    render_shape_graph(str(br.front).split('|',1)[1])
+                elif qkind=='latex':
+                    st.latex(qvalue)
+                else:
+                    st.markdown(f'### {qvalue}')
 
-        show_key=f"browser_show_answer_{int(br.id)}"
-        show_ans=p3.toggle('Show correct answer / explanation',value=False,key=show_key)
-        if show_ans:
-            st.markdown('**Correct answer:**')
-            if any(ch in str(br.back) for ch in '^/()=<>' ) or any(tok in str(br.back).lower() for tok in ['theta','pi','sin','cos','sqrt']):
-                st.latex(expr_latex(br.back))
-            else:
-                st.markdown(f'### {esc(br.back)}')
-            st.markdown('**Explanation:**')
-            st.markdown(wrong_answer_explanation(br))
+                # Preview actual answer presentation.
+                if is_short_fill(br):
+                    st.markdown('**Fill in the blank**')
+                    st.text_input(
+                        'Preview answer',
+                        placeholder='Student response field',
+                        disabled=True,
+                        key=f'browser_fill_preview_{cid}',
+                        label_visibility='collapsed'
+                    )
+                else:
+                    opts_key=str(cid)
+                    if opts_key not in st.session_state.browser_options:
+                        st.session_state.browser_options[opts_key]=objective_choices(br,browse_exam,browse_subject,browse_topic)
+                    preview_choices=list(st.session_state.browser_options[opts_key])
+                    letters=['A','B','C','D'][:len(preview_choices)]
+                    st.markdown('**Choose the best answer**')
+                    for i,ch in enumerate(preview_choices):
+                        st.markdown(f"**{letters[i]}.** &nbsp;&nbsp; {option_markup(ch)}")
+
+                with st.expander('Show correct answer / explanation',expanded=False):
+                    st.markdown('**Correct answer:**')
+                    if any(ch in str(br.back) for ch in '^/()=<>' ) or any(tok in str(br.back).lower() for tok in ['theta','pi','sin','cos','sqrt']):
+                        st.latex(expr_latex(br.back))
+                    else:
+                        st.markdown(f'### {esc(br.back)}')
+                    st.markdown('**Explanation:**')
+                    st.markdown(wrong_answer_explanation(br))
 
         st.divider()
         selected_ids=[int(x) for x in st.session_state.browser_selected_ids]
-        st.markdown(f"### Custom Quiz Builder · {len(selected_ids)} selected")
+        st.markdown(f"## Custom Quiz Builder · {len(selected_ids)} selected")
+
         if selected_ids:
             chosen=all_cards[all_cards.id.isin(selected_ids)].copy()
             order={cid:i for i,cid in enumerate(selected_ids)}
             chosen['order']=chosen.id.map(order)
             chosen=chosen.sort_values('order')
-            with st.expander('Review selected questions',expanded=False):
+
+            with st.expander('Review selected questions',expanded=True):
                 for _,z in chosen.iterrows():
                     c1,c2=st.columns([7,1])
-                    c1.markdown(f"**{int(z.id)} · {esc(z.topic)}** — {esc(str(z.front).replace('GRAPH_MATCH|','Graph: '))}")
-                    if c2.button('Remove',key=f"remove_custom_{int(z.id)}",use_container_width=True):
+                    label=str(z.front)
+                    if label.startswith('GRAPH_MATCH|'):
+                        label='Graph match: '+label.split('|',1)[1].replace('_',' ')
+                    c1.markdown(f"**{esc(z.topic)}** — {esc(label)}")
+                    if c2.button('Remove',key=f"selected_remove_{int(z.id)}",use_container_width=True):
                         st.session_state.browser_selected_ids=[x for x in selected_ids if x!=int(z.id)]
                         st.rerun()
 
             s1,s2=st.columns(2)
-            if s1.button(f'▶ Start Custom Quiz ({len(selected_ids)} questions)',type='primary',use_container_width=True):
+            if s1.button(f'▶ Start Custom Quiz ({len(selected_ids)} questions)',type='primary',use_container_width=True,key='browser_start_bottom'):
                 st.session_state.custom_quiz_ids=list(selected_ids)
                 st.session_state.custom_quiz_active=True
                 st.session_state.answer_style='Mixed Quiz'
@@ -1215,8 +1229,7 @@ with t2:
                 st.session_state.browser_selected_ids=[]
                 st.rerun()
         else:
-            st.info('Add questions while browsing. Your selected questions will appear here and can be launched as a custom quiz.')
-
+            st.info('Click ＋ Add on any question above to build a custom quiz.')
 
 with t3:
     st.markdown('## Progress & Weakness Tracker');st.caption('Higher weakness means the card returns more aggressively.')

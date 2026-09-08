@@ -68,3 +68,9 @@ Fixed the math-notation replacement crash caused by Python interpreting LaTeX ba
 
 ## Question Browser sorting hotfix 2
 Replaced tuple-based natural sort keys with string-only zero-padded keys for compatibility with pandas on Python 3.14.
+
+## Scrollable all-question browser
+- Question Browser now shows every matching question in one continuous scrollable list.
+- Each question is previewed in its study presentation format.
+- Every card has a one-click Add / Added button for the custom quiz builder.
+- Filters and search still work, and the custom quiz can be launched from the top or bottom of the browser.
