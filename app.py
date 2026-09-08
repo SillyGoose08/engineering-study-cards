@@ -1100,7 +1100,13 @@ with t2:
         )
         browse_pool=browse_pool[mask]
 
-    browse_pool=browse_pool.sort_values(['subject','topic','id'],key=lambda s:s.map(natural_sort_key) if s.name in ['subject','topic'] else s).reset_index(drop=True)
+    # Sort text columns naturally first, then numeric card ID.
+    # A single pandas sort key cannot safely return tuples for text columns
+    # and integers for the ID column on newer pandas/Python versions.
+    browse_pool=browse_pool.copy()
+    browse_pool['_subject_sort']=browse_pool['subject'].astype(str).map(natural_sort_key)
+    browse_pool['_topic_sort']=browse_pool['topic'].astype(str).map(natural_sort_key)
+    browse_pool=browse_pool.sort_values(['_subject_sort','_topic_sort','id']).drop(columns=['_subject_sort','_topic_sort']).reset_index(drop=True)
 
     if browse_pool.empty:
         st.info('No questions match those browser filters.')
