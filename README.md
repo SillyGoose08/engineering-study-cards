@@ -40,3 +40,7 @@ Fixed the math-notation replacement crash caused by Python interpreting LaTeX ba
 - Point-normal, line-form, plane-parallel, and normal-vector questions now use realistic line/plane distractors.
 - Formula questions no longer fall back to obvious nonsense such as `0` and `1` unless that answer type genuinely fits.
 - Placeholder choices such as `Choice 3` were removed.
+
+## Ellipsoid + Greek-symbol rendering fix
+- Multi-term equations such as `x^2/9+y^2/4+z^2=1` now render as separate fractions instead of a nested fraction.
+- `theta` and `pi` inside prose answer choices now render as Greek symbols.

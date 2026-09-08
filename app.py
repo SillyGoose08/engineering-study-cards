@@ -426,7 +426,33 @@ def expr_latex(raw):
     if re.fullmatch(r'\([^()]+,[^()]+\)',s):
         a,b=[x.strip() for x in s[1:-1].split(',',1)]
         return rf"\left({expr_latex(a)},\,{expr_latex(b)}\right)"
-    # top-level fraction
+    # Equations/sums must be split before looking for a single fraction.
+    # Example: x^2/9+y^2/4+z^2=1 should become three terms, not one nested fraction.
+    depth=0
+    eq_pos=None
+    for i,ch in enumerate(s):
+        if ch=='(': depth+=1
+        elif ch==')': depth-=1
+        elif ch=='=' and depth==0:
+            eq_pos=i; break
+    if eq_pos is not None:
+        return rf"{expr_latex(s[:eq_pos])}={expr_latex(s[eq_pos+1:])}"
+
+    depth=0
+    plus_positions=[]
+    for i,ch in enumerate(s):
+        if ch=='(': depth+=1
+        elif ch==')': depth-=1
+        elif ch=='+' and depth==0:
+            plus_positions.append(i)
+    if plus_positions:
+        parts=[]; start=0
+        for pos in plus_positions:
+            parts.append(s[start:pos]); start=pos+1
+        parts.append(s[start:])
+        return '+'.join(expr_latex(p.strip()) for p in parts)
+
+    # A true single top-level fraction.
     depth=0
     for i,ch in enumerate(s):
         if ch=='(': depth+=1
@@ -547,13 +573,21 @@ def option_markup(raw):
         out, flags=re.I
     )
 
+    # Named symbols inside prose answer choices.
+    out=re.sub(r'(?<![A-Za-z\\$])theta(?![A-Za-z$])',
+               lambda m:r'$\theta$', out, flags=re.I)
+    out=re.sub(r'(?<![A-Za-z\\$])pi(?![A-Za-z$])',
+               lambda m:r'$\pi$', out, flags=re.I)
+
     # Compact powers in prose
-    out=re.sub(
-        r'(?<![A-Za-z0-9_])([A-Za-z])\^(-?\d+)(?![A-Za-z0-9_])',
-        lambda m: rf'${m.group(1)}^{{{m.group(2)}}}$',
-        out
-    )
-    return out
+    parts=re.split(r'(\$[^$]*\$)',out)
+    for i in range(0,len(parts),2):
+        parts[i]=re.sub(
+            r'(?<![A-Za-z0-9_])([A-Za-z])\^(-?\d+)(?![A-Za-z0-9_])',
+            lambda m: rf'${m.group(1)}^{{{m.group(2)}}}$',
+            parts[i]
+        )
+    return ''.join(parts)
 
 def objective_choices(r, exam, subject, topic):
     """Return sensible, stable MC options. Prefer curated concept families over random deck answers."""
