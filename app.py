@@ -267,6 +267,61 @@ def init():
     exam1_calculation_cards=[('Calc 3 — Ch 12', '12.3 Dot Product', 'Calculation', 'Compute $\\mathbf a\\cdot\\mathbf b$ for $\\mathbf a=⟨1,2,-1⟩$ and $\\mathbf b=⟨3,0,4⟩$.', '-1', 'Multiply corresponding components, then add the three products.', ['-1', '1', '-3', '0']), ('Calc 3 — Ch 12', '12.3 Dot Product', 'Calculation', 'Compute $\\mathbf a\\cdot\\mathbf b$ for $\\mathbf a=⟨2,-3,4⟩$ and $\\mathbf b=⟨-1,5,2⟩$.', '-9', 'Multiply corresponding components, then add the three products.', ['-9', '-7', '-11', '9']), ('Calc 3 — Ch 12', '12.3 Dot Product', 'Calculation', 'Compute $\\mathbf a\\cdot\\mathbf b$ for $\\mathbf a=⟨4,1,0⟩$ and $\\mathbf b=⟨2,-2,3⟩$.', '6', 'Multiply corresponding components, then add the three products.', ['6', '8', '4', '-6']), ('Calc 3 — Ch 12', '12.3 Dot Product', 'Calculation', 'Compute $\\mathbf a\\cdot\\mathbf b$ for $\\mathbf a=⟨-2,3,1⟩$ and $\\mathbf b=⟨4,1,-5⟩$.', '-10', 'Multiply corresponding components, then add the three products.', ['-10', '-8', '-12', '10']), ('Calc 3 — Ch 12', '12.3 Dot Product', 'Calculation', 'Compute $\\mathbf a\\cdot\\mathbf b$ for $\\mathbf a=⟨5,-1,2⟩$ and $\\mathbf b=⟨0,3,4⟩$.', '5', 'Multiply corresponding components, then add the three products.', ['5', '7', '3', '-5']), ('Calc 3 — Ch 12', '12.3 Dot Product', 'Calculation', 'Compute $\\mathbf a\\cdot\\mathbf b$ for $\\mathbf a=⟨1,1,1⟩$ and $\\mathbf b=⟨2,3,4⟩$.', '9', 'Multiply corresponding components, then add the three products.', ['9', '11', '7', '-9']), ('Calc 3 — Ch 12', '12.3 Dot Product', 'Calculation', 'Compute $\\mathbf a\\cdot\\mathbf b$ for $\\mathbf a=⟨3,-2,5⟩$ and $\\mathbf b=⟨-2,1,0⟩$.', '-8', 'Multiply corresponding components, then add the three products.', ['-8', '-6', '-10', '8']), ('Calc 3 — Ch 12', '12.3 Dot Product', 'Calculation', 'Compute $\\mathbf a\\cdot\\mathbf b$ for $\\mathbf a=⟨0,4,-3⟩$ and $\\mathbf b=⟨2,-1,5⟩$.', '-19', 'Multiply corresponding components, then add the three products.', ['-19', '-17', '-21', '19']), ('Calc 3 — Ch 12', '12.3 Dot Product', 'Calculation', 'Compute $\\mathbf a\\cdot\\mathbf b$ for $\\mathbf a=⟨-1,2,3⟩$ and $\\mathbf b=⟨4,-2,1⟩$.', '-5', 'Multiply corresponding components, then add the three products.', ['-5', '-3', '-7', '5']), ('Calc 3 — Ch 12', '12.3 Dot Product', 'Calculation', 'Compute $\\mathbf a\\cdot\\mathbf b$ for $\\mathbf a=⟨2,0,-4⟩$ and $\\mathbf b=⟨3,5,-1⟩$.', '10', 'Multiply corresponding components, then add the three products.', ['10', '12', '8', '-10']), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Calculation', 'Compute $\\mathbf a\\times\\mathbf b$ for $\\mathbf a=⟨1,2,3⟩$ and $\\mathbf b=⟨4,-1,2⟩$.', '⟨7,10,-9⟩', 'Use the 3×3 determinant. Remember the j-component carries a negative sign.', ['⟨7,10,-9⟩', '⟨-7,-10,9⟩', '⟨10,7,-9⟩', '⟨7,-10,-9⟩']), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Calculation', 'Compute $\\mathbf a\\times\\mathbf b$ for $\\mathbf a=⟨2,-1,0⟩$ and $\\mathbf b=⟨1,3,4⟩$.', '⟨-4,-8,7⟩', 'Use the 3×3 determinant. Remember the j-component carries a negative sign.', ['⟨-4,-8,7⟩', '⟨4,8,-7⟩', '⟨-8,-4,7⟩', '⟨-4,8,7⟩']), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Calculation', 'Compute $\\mathbf a\\times\\mathbf b$ for $\\mathbf a=⟨3,0,-2⟩$ and $\\mathbf b=⟨1,4,2⟩$.', '⟨8,-8,12⟩', 'Use the 3×3 determinant. Remember the j-component carries a negative sign.', ['⟨8,-8,12⟩', '⟨-8,8,-12⟩', '⟨-8,8,12⟩', '⟨8,8,12⟩']), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Calculation', 'Compute $\\mathbf a\\times\\mathbf b$ for $\\mathbf a=⟨1,-2,4⟩$ and $\\mathbf b=⟨2,1,-1⟩$.', '⟨-2,9,5⟩', 'Use the 3×3 determinant. Remember the j-component carries a negative sign.', ['⟨-2,9,5⟩', '⟨2,-9,-5⟩', '⟨9,-2,5⟩', '⟨-2,-9,5⟩']), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Calculation', 'Compute $\\mathbf a\\times\\mathbf b$ for $\\mathbf a=⟨0,3,1⟩$ and $\\mathbf b=⟨2,-1,4⟩$.', '⟨13,2,-6⟩', 'Use the 3×3 determinant. Remember the j-component carries a negative sign.', ['⟨13,2,-6⟩', '⟨-13,-2,6⟩', '⟨2,13,-6⟩', '⟨13,-2,-6⟩']), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Calculation', 'Compute $\\mathbf a\\times\\mathbf b$ for $\\mathbf a=⟨2,2,-1⟩$ and $\\mathbf b=⟨-1,3,2⟩$.', '⟨7,-3,8⟩', 'Use the 3×3 determinant. Remember the j-component carries a negative sign.', ['⟨7,-3,8⟩', '⟨-7,3,-8⟩', '⟨-3,7,8⟩', '⟨7,3,8⟩']), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Calculation', 'Compute $\\mathbf a\\times\\mathbf b$ for $\\mathbf a=⟨4,1,0⟩$ and $\\mathbf b=⟨0,2,3⟩$.', '⟨3,-12,8⟩', 'Use the 3×3 determinant. Remember the j-component carries a negative sign.', ['⟨3,-12,8⟩', '⟨-3,12,-8⟩', '⟨-12,3,8⟩', '⟨3,12,8⟩']), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Calculation', 'Compute $\\mathbf a\\times\\mathbf b$ for $\\mathbf a=⟨1,0,2⟩$ and $\\mathbf b=⟨3,-1,1⟩$.', '⟨2,5,-1⟩', 'Use the 3×3 determinant. Remember the j-component carries a negative sign.', ['⟨2,5,-1⟩', '⟨-2,-5,1⟩', '⟨5,2,-1⟩', '⟨2,-5,-1⟩']), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Calculation', 'Compute $\\mathbf a\\times\\mathbf b$ for $\\mathbf a=⟨-2,1,3⟩$ and $\\mathbf b=⟨1,2,-1⟩$.', '⟨-7,1,-5⟩', 'Use the 3×3 determinant. Remember the j-component carries a negative sign.', ['⟨-7,1,-5⟩', '⟨7,-1,5⟩', '⟨1,-7,-5⟩', '⟨-7,-1,-5⟩']), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Calculation', 'Compute $\\mathbf a\\times\\mathbf b$ for $\\mathbf a=⟨3,-1,2⟩$ and $\\mathbf b=⟨2,4,0⟩$.', '⟨-8,4,14⟩', 'Use the 3×3 determinant. Remember the j-component carries a negative sign.', ['⟨-8,4,14⟩', '⟨8,-4,-14⟩', '⟨4,-8,14⟩', '⟨-8,-4,14⟩'])]
     curriculum_cards.extend(exam1_calculation_cards)
 
+    # Fall 2026 Exam 1 / prerequisite review cards sourced from the instructor handouts.
+    instructor_review_cards=[
+        ('Calc 3 — Ch 12','12.5 Lines and Planes','Recognition','Two non-parallel lines are given. What is the workflow for finding their point of intersection?','Write both parametrically, use different parameters, set coordinates equal, solve two equations, check the third, then plug back in.','Different parameters are allowed because this is path intersection, not collision.',None),
+        ('Calc 3 — Ch 12','12.5 Lines and Planes','Recognition','You solve two coordinate equations for two lines, but the values fail the third coordinate equation. What are the lines?','Skew','Failure of the third coordinate check means the lines do not actually meet.',['Skew','Intersecting','Identical','Perpendicular']),
+        ('Calc 3 — Ch 12','12.5 Lines and Planes','Recognition','How do you find the intersection point of a non-parallel line and plane?','Substitute the line parametric equations into the plane, solve for the parameter, then plug back into the line.','Line-plane intersection reduces the plane equation to one parameter.',None),
+        ('Calc 3 — Ch 12','12.5 Lines and Planes','Recognition','How do you get the direction vector for the line of intersection of two non-parallel planes?','Cross product of the two plane normal vectors','A direction lying in both planes is perpendicular to both normals.',['Cross product of the two plane normal vectors','Dot product of the normals','Subtract the plane equations','Normalize either normal']),
+        ('Calc 3 — Ch 12','12.5 Lines and Planes','Recognition','After finding the direction of the intersection line of two planes, what else is needed to write the line equation?','A point that lies on both planes','Line = point + parameter times direction.',['A point that lies on both planes','A third normal vector','The distance between planes','A unit normal']),
+        ('Calc 3 — Ch 12','12.5 Lines and Planes','Recognition','What is the distance from point $(x_1,y_1,z_1)$ to plane $ax+by+cz+d=0$?','$\\frac{|ax_1+by_1+cz_1+d|}{\\sqrt{a^2+b^2+c^2}}$','Numerator evaluates the plane expression at the point; denominator is the normal magnitude.',None),
+        ('Calc 3 — Ch 12','12.5 Lines and Planes','Recognition','How do you find the distance between two parallel planes?','Choose a point on one plane and compute its point-to-plane distance to the other plane.','Parallel planes have constant separation.',None),
+        ('Calc 3 — Ch 12','12.5 Lines and Planes','Recognition','For two skew lines, what vector should you compute first when finding their distance?','Cross product of their direction vectors','This gives a vector orthogonal to both lines.',['Cross product of their direction vectors','Dot product of their direction vectors','Sum of their direction vectors','Either line direction']),
+        ('Calc 3 — Ch 12','12.5 Lines and Planes','Recognition','For parallel lines with common direction $\\mathbf v$, points $p,q$, and $\\mathbf w=\\overrightarrow{pq}$, what length gives the distance?','$|\\mathbf w-\\operatorname{proj}_{\\mathbf v}\\mathbf w|$','Remove the component of w parallel to the lines; the remainder is perpendicular.',None),
+        ('Calc 3 — Ch 12','12.3 Dot Product','Recognition','If $\\mathbf a\\cdot\\mathbf b>0$, what kind of included angle do nonzero vectors have?','Acute','Positive cosine means an acute angle.',['Acute','Obtuse','Right','Cannot be determined']),
+        ('Calc 3 — Ch 12','12.3 Dot Product','Recognition','If $\\mathbf a\\cdot\\mathbf b<0$, what kind of included angle do nonzero vectors have?','Obtuse','Negative cosine means an obtuse angle.',['Obtuse','Acute','Right','Parallel']),
+        ('Calc 3 — Ch 12','12.3 Dot Product','Recognition','What is $\\mathbf a\\cdot\\mathbf a$?','$|\\mathbf a|^2$','A vector dotted with itself is its magnitude squared.',None),
+        ('Calc 3 — Ch 12','12.4 Cross Product','Recognition','What is $\\mathbf a\\times\\mathbf a$?','$\\mathbf 0$','The angle is zero, so sin(0)=0.',None),
+        ('Calc 3 — Ch 12','12.4 Cross Product','Recognition','What does $\\mathbf a\\times\\mathbf b=\\mathbf0$ mean for nonzero vectors?','The vectors are parallel','Zero cross-product magnitude means the included angle has sine zero.',['The vectors are parallel','The vectors are perpendicular','Their magnitudes are equal','Their dot product is zero']),
+        ('Calc 3 — Ch 12','12.4 Cross Product','Recognition','What formula gives the magnitude of a cross product from magnitudes and included angle?','$|\\mathbf a\\times\\mathbf b|=|\\mathbf a||\\mathbf b|\\sin\\theta$','Cross-product magnitude measures the perpendicular part.',None),
+        ('Calc 3 — Ch 12','12.4 Cross Product','Recognition','How do you determine whether $\\mathbf a\\times\\mathbf b$ points into or out of the page?','Right-hand rule','Curl from the first vector toward the second; the thumb gives the cross-product direction.',['Right-hand rule','Dot product sign','Law of cosines','Projection']),
+        ('Calc 3 — Ch 12','12.4 Cross Product','Recognition','What gives the volume of a parallelepiped formed by $\\mathbf a,\\mathbf b,\\mathbf c$?','$|\\mathbf a\\cdot(\\mathbf b\\times\\mathbf c)|$','Use the absolute value of the scalar triple product.',None),
+        ('Calc 3 — Ch 13','13.1 Vector Functions','Recognition','Two particle paths intersect geometrically. What additional condition is required for the particles to collide?','They must reach the same point at the same time parameter.','Path intersection allows separate parameters; collision does not.',None),
+        ('Calc 3 — Ch 13','13.2 Derivatives and Integrals','Recognition','How do you find the unit tangent vector of a curve $\\mathbf r(t)$?','$\\mathbf T(t)=\\frac{\\mathbf r\'(t)}{|\\mathbf r\'(t)|}$','Differentiate the position vector and normalize it.',None),
+        ('Calc 3 — Ch 13','13.2 Derivatives and Integrals','Recognition','What direction vector should you use for the tangent line to $\\mathbf r(t)$ at $t=t_0$?','$\\mathbf r\'(t_0)$','The derivative vector is tangent to the curve.',None),
+        ('Math Foundations','Review — Trigonometry','Recognition','What is the degree-radian conversion anchor?','$\\pi\\text{ radians}=180^\\circ$','Use this equality to convert in either direction.',None),
+        ('Math Foundations','Review — Trigonometry','Recognition','In a right triangle, what is $\\sin\\theta$?','$\\frac{\\text{opposite}}{\\text{hypotenuse}}$','SOH from SOH-CAH-TOA.',None),
+        ('Math Foundations','Review — Trigonometry','Recognition','What is the Pythagorean identity?','$\\sin^2\\theta+\\cos^2\\theta=1$','This is the fundamental trig identity.',None),
+        ('Math Foundations','Review — Trigonometry','Recognition','What is $1+\\tan^2\\theta$?','$\\sec^2\\theta$','One of the Pythagorean identities.',None),
+        ('Math Foundations','Review — Exponents & Logs','Recognition','What is $a^x a^y$?','$a^{x+y}$','Same base multiplied → add exponents.',None),
+        ('Math Foundations','Review — Exponents & Logs','Recognition','What is $a^x/a^y$?','$a^{x-y}$','Same base divided → subtract exponents.',None),
+        ('Math Foundations','Review — Exponents & Logs','Recognition','What is $\\log_b(xy)$?','$\\log_bx+\\log_by$','A product inside a logarithm becomes a sum.',None),
+        ('Math Foundations','Review — Exponents & Logs','Recognition','What is $\\log_b(x/y)$?','$\\log_bx-\\log_by$','A quotient inside a logarithm becomes a difference.',None),
+        ('Math Foundations','Review — Integrals','Recognition','What is $\\int \\frac1u\\,du$?','$\\ln|u|+C$','The exponent -1 is the exception to the ordinary power rule.',None),
+        ('Math Foundations','Review — Integrals','Recognition','What is $\\int e^u\\,du$?','$e^u+C$','The natural exponential is its own antiderivative.',None),
+        ('Math Foundations','Review — Integrals','Recognition','What is $\\int \\sec^2u\\,du$?','$\\tan u+C$','Derivative of tangent is secant squared.',None),
+        ('Math Foundations','Review — Limits','Recognition',"When is L'Hopital's Rule applicable in the prerequisite review?",'$0/0$ or $\\infty/\\infty$ indeterminate forms','Check the form before differentiating numerator and denominator.',None),
+        ('Math Foundations','Review — Linear Approximation','Recognition','What is the linear approximation of $f(x)$ at $x=a$?','$L(x)=f(a)+f\'(a)(x-a)$','Tangent-line approximation near a.',None),
+        ('Math Foundations','Review — Taylor Series','Recognition','What is the general Taylor-series pattern for $f$ about $x=a$?','$f(a)+f\'(a)(x-a)+\\frac{f\'\'(a)}{2!}(x-a)^2+\\cdots$','Successive derivatives evaluated at a, divided by factorials.',None),
+        ('Math Foundations','Review — Method Recognition','Recognition','You see an integral containing an inside function and its derivative. What method should you test first?','u-substitution','This is the reverse pattern of the Chain Rule.',['u-substitution','Integration by parts',"L'Hopital's Rule",'Quotient Rule']),
+        ('Math Foundations','Review — Method Recognition','Recognition','You see an integral that is naturally a product where differentiating one factor simplifies it. What method should you consider?','Integration by parts','Integration by parts is the integration partner of the Product Rule.',['Integration by parts','u-substitution','Power Rule','Chain Rule']),
+    ]
+    curriculum_cards.extend(instructor_review_cards)
+
+    # Migrate previously seeded cross-product calculation cards in-place. The
+    # subject/front duplicate key would otherwise leave the old vector-only prompt.
+    cross_rows=c.execute("SELECT id,front,hint FROM cards WHERE topic='12.4 Cross Product' AND card_type='Calculation'").fetchall()
+    for row in cross_rows:
+        old_front=str(row['front'])
+        m=re.search(r'Compute\\s+\\$?\\\\mathbf\\s*([A-Za-z])\\\\times\\\\mathbf\\s*([A-Za-z])\\$?\\s+for\\s+\\$?\\\\mathbf\\s*\\1\\s*=\\s*[⟨<]\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\s*[⟩>]\\$?\\s+and\\s+\\$?\\\\mathbf\\s*\\2\\s*=\\s*[⟨<]\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\s*,\\s*(-?\\d+)\\s*[⟩>]\\$?',old_front,re.I)
+        if m:
+            u,v=m.group(1),m.group(2); av=tuple(map(int,m.group(3,4,5))); bv=tuple(map(int,m.group(6,7,8)))
+            det=cross_product_determinant_latex(av,bv)
+            expansion=cross_product_expansion_latex(av,bv)
+            new_front=rf'Compute $\\mathbf {u}\\times\\mathbf {v}$: $${det}$$'
+            new_hint=rf'After you answer, check the cofactor expansion: $${expansion}$$ Remember the signs $+,-,+$.'
+            c.execute('UPDATE cards SET front=?,hint=? WHERE id=?',(new_front,new_hint,int(row['id'])))
+
     for subject,top,ctype,front,back,hint,choices in curriculum_cards:
         if not c.execute('SELECT 1 FROM cards WHERE subject=? AND front=?',(subject,front)).fetchone():
             packed='|||'.join(choices) if choices else None
@@ -536,6 +591,17 @@ def question_markup(raw):
     """Render math cleanly inside prose without exposing raw x^2-style notation."""
     import re
     q=str(raw).strip()
+
+    # All computational cross-product cards use the determinant as the QUESTION.
+    # This also upgrades older seeded cards already stored in SQLite, so users do
+    # not need to wipe their database to get the new presentation.
+    if 'cross product' not in q.lower():
+        mcp=re.search(r'Compute\s+\$?\\mathbf\s*([A-Za-z])\\times\\mathbf\s*([A-Za-z])\$?\s+for\s+\$?\\mathbf\s*\1\s*=\s*[⟨<]\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*[⟩>]\$?\s+and\s+\$?\\mathbf\s*\2\s*=\s*[⟨<]\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*[⟩>]\$?',q,re.I)
+        if mcp:
+            u,v=mcp.group(1),mcp.group(2)
+            a=tuple(map(int,mcp.group(3,4,5))); b=tuple(map(int,mcp.group(6,7,8)))
+            det=cross_product_determinant_latex(a,b)
+            return 'latex',rf"\mathbf{{{u}}}\times\mathbf{{{v}}}={det}"
 
     # Pure derivative questions
     m=re.fullmatch(r'd/dx\((.+)\)\s*=\s*\?',q)
@@ -810,9 +876,15 @@ def wrong_answer_explanation(r):
                 f"$a_1b_1+a_2b_2+a_3b_3$. The correct scalar result is **{a}**. "
                 "**Recognition rule:** dot product calculation → multiply matching components, then add.")
     if q.startswith('compute') and 'a\\times' in q:
-        return (f"For a cross product, expand the $3\\times3$ determinant (or use the component formula) "
-                f"and keep the negative sign on the $j$ component. The correct vector is **{a}**. "
-                "**Recognition rule:** cross product calculation → determinant → vector.")
+        nums=re.findall(r'[⟨<]\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*[⟩>]',str(r.front))
+        if len(nums)>=2:
+            av=tuple(map(int,nums[0])); bv=tuple(map(int,nums[1]))
+            det=cross_product_determinant_latex(av,bv)
+            expansion=cross_product_expansion_latex(av,bv)
+            return ("Start with the determinant: " + f"$${det}$$" + "\n\nThen expand across the top row: " + f"$${expansion}$$" +
+                    f"\n\nThe correct vector is **{a}**. Remember the cofactor signs are $+,-,+$, so the $j$ term carries the minus sign.")
+        return (f"For a cross product, expand the $3\times3$ determinant and keep the negative sign on the $j$ component. "
+                f"The correct vector is **{a}**.")
     if 'perpendicular' in q and 'vector' in q and 'dot' in topic:
         return ("Two nonzero vectors are perpendicular when their dot product is 0. "
                 "Using $\\mathbf a\\cdot\\mathbf b=|\\mathbf a||\\mathbf b|\\cos\\theta$, "
