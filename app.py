@@ -104,22 +104,71 @@ def is_fillable(r):
     return not any(x in ans.lower() for x in bad)
 
 def normalize_answer(x):
-    x=str(x).strip().lower()
+    import re
+    x=str(x).strip().casefold()
+
+    # Natural-language aliases first, while spaces still exist.
+    phrase_aliases={
+        'inverse tangent':'atan',
+        'inverse tan':'atan',
+        'tan inverse':'atan',
+        'arc tangent':'atan',
+        'arc tan':'atan',
+        'natural logarithm':'ln',
+        'natural log':'ln',
+        'plus c':'+c',
+    }
+    for src,dst in phrase_aliases.items(): x=x.replace(src,dst)
+
+    # Be forgiving about normal typing differences without changing the concept.
     x=x.replace('π','pi').replace('−','-').replace('×','*').replace('·','*')
-    x=x.replace('\\','').replace(' ','').replace('{','(').replace('}',')')
-    x=x.replace('^(','^(')
+    x=x.replace('\\','').replace('{','(').replace('}',')')
     x=x.replace('arctan','atan').replace('tan^-1','atan').replace('tan^(-1)','atan')
+    x=x.replace('tan⁻¹','atan')
+    x=x.replace('e^(-1)','e^-1')
     x=x.replace('ln|x|','ln(abs(x))').replace('|x|','abs(x)')
-    x=x.replace('+c','+c').replace('c+','+c')
+
+    # Text answers should not fail because of capitalization, punctuation,
+    # or a hyphen typed between words (cross-product vs Cross product.).
+    x=re.sub(r'[.!?,;:]+$', '', x)
+    x=re.sub(r'(?<=[a-z])-(?=[a-z])', '', x)
+    x=re.sub(r'\s+', '', x)
     x=x.replace('*','')
+
+    # Standardize common function spellings and trivial wrappers.
+    x=re.sub(r'atan\((?:x|t|theta)\)', 'atan', x)
+    x=re.sub(r'ln\((?:x|t)\)', 'ln', x)
+    x=re.sub(r'(?<![a-z])1/e(?![a-z])', 'e^-1', x)
     return x
 
 def answers_match(user,expected):
     a,b=normalize_answer(user),normalize_answer(expected)
     if a==b:return True
+
+    # Concept-aware aliases for the foundation deck.  These are mathematically
+    # equivalent ways students commonly type the same answer.
+    equivalent_groups=[
+        {'atan+c','atan'},                       # inverse tan / arctan recognition
+        {'e^-1','1/e'},                          # reciprocal exponential notation
+        {'sqrt(2)/2','1/sqrt(2)'},               # 45-degree unit-circle value
+        {'sqrt(3)/3','1/sqrt(3)'},               # common rationalized trig value
+    ]
+    for group in equivalent_groups:
+        if a in group and b in group:return True
+
+    # Allow the variable to be omitted when the function itself is the tested
+    # recognition target: atan(t)+C, atan(x)+C, and "inverse tan + C".
+    if b.startswith('atan') and b.endswith('+c') and a in {'atan','atan+c'}:
+        return True
+    if a.startswith('atan') and a.endswith('+c') and b in {'atan','atan+c'}:
+        return True
+
+    # Numeric equivalence, including decimals such as 0.5 vs 1/2 when both
+    # sides are directly parseable numbers.
     try:
         return abs(float(a)-float(b)) <= max(1e-4,abs(float(b))*0.01)
-    except: return False
+    except:
+        return False
 
 def pick(mode,subject,topic,answer_style='Flashcards',exclude=None):
     d=stats();
