@@ -48,3 +48,13 @@ Fixed the math-notation replacement crash caused by Python interpreting LaTeX ba
 ## Canonical graph-equation rendering fix
 - Added explicit LaTeX mappings for circle, sphere, ellipsoid, helix, and twisted-cubic equations.
 - The ellipsoid choice now renders as separate x, y, and z terms instead of being misread by the generic fraction parser.
+
+## Formula-choice Greek symbol fix
+- Formula-like multiple-choice answers now render as one coherent LaTeX expression even when they contain spaces.
+- `theta` and `pi` inside formulas now render as Greek symbols.
+- The standard dot-product angle formula now has an explicit canonical LaTeX form.
+
+## Wrong-answer explanations
+- Incorrect multiple-choice answers now show a concise explanation of the correct answer.
+- High-value Calc 3 recognition rules are included for vectors, dot/cross products, lines/planes, quadrics, graph matching, critical numbers, and polar coordinates.
+- Correct answers remain fast and uncluttered.

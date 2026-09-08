@@ -438,6 +438,8 @@ def expr_latex(raw):
         'r(t)=<cos(t),sin(t),t>': r'\mathbf r(t)=\langle \cos t,\sin t,t\rangle',
         'r(t)=<cos(t),sin(t),t/pi>': r'\mathbf r(t)=\langle \cos t,\sin t,\frac{t}{\pi}\rangle',
         'r(t)=<t,t^2,t^3>': r'\mathbf r(t)=\langle t,t^{2},t^{3}\rangle',
+        'a·b=|a||b|cos(theta)': r'\mathbf a\cdot\mathbf b=|\mathbf a||\mathbf b|\cos\theta',
+        'adotb=|a||b|cos(theta)': r'\mathbf a\cdot\mathbf b=|\mathbf a||\mathbf b|\cos\theta',
     }
     if canon in canonical_forms:
         return canonical_forms[canon]
@@ -551,62 +553,42 @@ def question_markup(raw):
     return 'md',''.join(parts)
 
 def option_markup(raw):
-    """Keep prose readable and format only the mathematical parts."""
+    """Render mathematical answers as math and prose answers as readable prose."""
     import re
     s=str(raw).strip()
-    # Normalize stored LaTeX delimiters so they never leak literally into the UI.
+
+    # Normalize stored LaTeX delimiters.
     if len(s) >= 2 and s.startswith('$') and s.endswith('$'):
         s=s[1:-1].strip()
 
-    # Explicitly prose-like answers should stay as prose.
-    prose_like = bool(re.search(r'\s', s)) and not (
-        s.startswith(('r(t)=','f(x)=','g(x)='))
-        or re.fullmatch(r'[\sA-Za-z0-9_+\-*/^=<>|().,]+',s) and '=' in s and len(s.split()) <= 4
-    )
+    compact=s.lower().replace(' ','')
+    formula_cues=[
+        '=', '^', '/', '·', '|', '<', '>', 'sqrt', 'sin', 'cos', 'tan',
+        'theta', 'pi', 'r(t)', 'f(x)', 'g(x)', 'dot', 'cross'
+    ]
+    looks_formula = any(cue in compact for cue in formula_cues)
 
-    if not prose_like:
-        # Pure/small symbolic answer
-        mathish=(
-            any(ch in s for ch in ['=', '^', '/', '<', '>', '√', '∫', '·'])
-            or any(tok in s.lower() for tok in ['sqrt', 'pi', 'theta', 'sin(', 'cos(', 'tan(', 'ln(', 'e^', 'r(t)', 'f(x)', 'g(x)'])
+    # Formula-like choices should be rendered as one coherent LaTeX expression.
+    if looks_formula:
+        # Normalize common word operators before passing to the math formatter.
+        s=re.sub(r'\bdot\b', '·', s, flags=re.I)
+        s=re.sub(r'\bcross\b', r'\\times', s, flags=re.I)
+        s=re.sub(r'\btheta\b', r'\\theta', s, flags=re.I)
+        s=re.sub(r'\bpi\b', r'\\pi', s, flags=re.I)
+
+        # Common vector magnitude / angle formula.
+        s=re.sub(
+            r'([A-Za-z])\s*·\s*([A-Za-z])\s*=\s*\|([A-Za-z])\|\s*\|([A-Za-z])\|\s*cos\s*\(?\\theta\)?',
+            lambda m: rf'{m.group(1)}\cdot {m.group(2)}=|{m.group(3)}||{m.group(4)}|\cos\theta',
+            s, flags=re.I
         )
-        if mathish:
-            return f'${expr_latex(s)}$'
-        return esc(s)
 
-    # Prose: preserve word spacing and only convert obvious math snippets.
-    out=esc(s)
+        # Compact a×b notation when "cross" was converted above.
+        s=s.replace(r'\times', r'\times ')
+        return f'${expr_latex(s)}$'
 
-    # u = ... expressions
-    out=re.sub(r'\bu\s*=\s*([A-Za-z0-9_+\-*/^().]+)',
-               lambda m: rf'$u={expr_latex(m.group(1))}$', out)
-
-    # du = ... expressions
-    out=re.sub(r'\bdu\s*=\s*([A-Za-z0-9_+\-*/^().]+)\s*d([A-Za-z])',
-               lambda m: rf'$du={expr_latex(m.group(1))}\,d{m.group(2)}$', out)
-
-    # Common dot-product formula embedded in prose
-    out=re.sub(
-        r'([A-Za-z])·([A-Za-z])\s*=\s*\|([A-Za-z])\|\|([A-Za-z])\|cos(?:theta|θ)',
-        lambda m: rf'${m.group(1)}\cdot {m.group(2)}=|{m.group(3)}||{m.group(4)}|\cos\theta$',
-        out, flags=re.I
-    )
-
-    # Named symbols inside prose answer choices.
-    out=re.sub(r'(?<![A-Za-z\\$])theta(?![A-Za-z$])',
-               lambda m:r'$\theta$', out, flags=re.I)
-    out=re.sub(r'(?<![A-Za-z\\$])pi(?![A-Za-z$])',
-               lambda m:r'$\pi$', out, flags=re.I)
-
-    # Compact powers in prose
-    parts=re.split(r'(\$[^$]*\$)',out)
-    for i in range(0,len(parts),2):
-        parts[i]=re.sub(
-            r'(?<![A-Za-z0-9_])([A-Za-z])\^(-?\d+)(?![A-Za-z0-9_])',
-            lambda m: rf'${m.group(1)}^{{{m.group(2)}}}$',
-            parts[i]
-        )
-    return ''.join(parts)
+    # Ordinary prose should remain ordinary prose.
+    return esc(s)
 
 def objective_choices(r, exam, subject, topic):
     """Return sensible, stable MC options. Prefer curated concept families over random deck answers."""
@@ -785,6 +767,68 @@ def objective_choices(r, exam, subject, topic):
     random.shuffle(choices)
     return choices
 
+
+def wrong_answer_explanation(r):
+    """Return a concise teaching explanation for an incorrect response."""
+    q=str(r.front).lower()
+    a=str(r.back).strip()
+    topic=str(r.topic).lower()
+
+    # High-value recognition rules for Calc 3 Exam 1.
+    if 'perpendicular' in q and 'vector' in q and 'dot' in topic:
+        return ("Two nonzero vectors are perpendicular when their dot product is 0. "
+                "Using $\\mathbf a\\cdot\\mathbf b=|\\mathbf a||\\mathbf b|\\cos\\theta$, "
+                "$\\theta=90^\\circ$ makes $\\cos\\theta=0$. "
+                "**Recognition rule:** testing whether two vectors are perpendicular → use the dot product.")
+    if 'formula connects the dot product to the angle' in q:
+        return ("The dot-product angle formula is "
+                "$\\mathbf a\\cdot\\mathbf b=|\\mathbf a||\\mathbf b|\\cos\\theta$. "
+                "It connects vector magnitudes and their included angle. "
+                "**Recognition rule:** angle between vectors → dot product.")
+    if 'cross product' in q and 'produce' in q:
+        return ("A cross product produces a new **vector** perpendicular to both input vectors. "
+                "**Recognition rule:** need a perpendicular vector or plane normal → cross product.")
+    if 'point-normal form of a plane' in q:
+        return ("A plane is determined by a point $(x_0,y_0,z_0)$ and a normal vector "
+                "$\\langle a,b,c\\rangle$, giving "
+                "$a(x-x_0)+b(y-y_0)+c(z-z_0)=0$. "
+                "**Recognition rule:** plane + normal vector → point-normal form.")
+    if 'two planes are parallel' in q:
+        return ("Two planes are parallel when their normal vectors are parallel. "
+                "The normals determine the planes' orientations, so proportional normals mean the planes have the same tilt.")
+    if 'intersection point of two parametric lines' in q:
+        return ("Set corresponding $x$, $y$, and $z$ coordinates equal, solve for the line parameters, "
+                "then substitute one parameter back into its own line. "
+                "**Recognition rule:** line intersection → equal coordinates, then substitute back.")
+    if 'unequal coefficients' in q and all(v in q for v in ['x','y','z']):
+        return ("Positive squared $x,y,z$ terms with unequal scaling describe an **ellipsoid**. "
+                "Equal scaling would give a sphere. "
+                "**Recognition rule:** all positive squares + unequal axis lengths → ellipsoid.")
+    if str(r.front).startswith('GRAPH_MATCH|'):
+        shape=str(r.front).split('|',1)[1]
+        shape_notes={
+            'circle': "A circle in the $xy$-plane has an equation such as $x^2+y^2=r^2$ and does not need a $z$ term.",
+            'sphere': "A sphere has $x^2+y^2+z^2=r^2$ with equal scaling in all three directions.",
+            'ellipsoid': "An ellipsoid has positive squared $x,y,z$ terms with unequal denominators, such as $\\frac{x^2}{9}+\\frac{y^2}{4}+z^2=1$.",
+            'helix': "A helix combines circular motion in $x,y$ with steadily changing $z$, such as $\\mathbf r(t)=\\langle\\cos t,\\sin t,t\\rangle$.",
+            'twisted_cubic': "A twisted cubic is the space curve $\\mathbf r(t)=\\langle t,t^2,t^3\\rangle$."
+        }
+        return shape_notes.get(shape, f"The correct answer is {a}.")
+
+    if 'critical number' in q:
+        return ("Critical numbers occur where $f'(x)=0$ or where $f'(x)$ does not exist, provided $x$ is in the domain of $f$. "
+                "**Recognition rule:** extrema/critical points → inspect the first derivative.")
+    if 'polar coordinates' in q and ('x^2+y^2' in q.replace(' ','') or 'x²+y²' in q.replace(' ','')):
+        return ("In polar coordinates, $x=r\\cos\\theta$ and $y=r\\sin\\theta$, so "
+                "$x^2+y^2=r^2(\\cos^2\\theta+\\sin^2\\theta)=r^2$.")
+
+    # Generic fallback using the stored hint when available.
+    hint=str(r.get('hint','')).strip() if hasattr(r, 'get') else ''
+    if hint and hint.lower() not in ('nan','none'):
+        return f"The correct answer is **{a}**. {hint}"
+    return f"The correct answer is **{a}**. Compare the structure of the question to the definition or formula used in this topic."
+
+
 def elapsed(s):
     t=datetime.fromisoformat(s);q=max(0,int((datetime.now(timezone.utc)-t).total_seconds()));return f'{q//60}:{q%60:02d}'
 
@@ -930,6 +974,9 @@ with t1:
                             st.latex(expr_latex(r.back))
                         else:
                             st.markdown(f'### {esc(r.back)}')
+                        if not correct:
+                            st.markdown('#### Why this is the right answer')
+                            st.markdown(wrong_answer_explanation(r))
                         if st.button('Next Question →',type='primary',use_container_width=True):advance('Correct' if correct else 'Wrong',5 if correct else 1,'Multiple Choice')
                 else:
                     st.markdown('#### Type your answer')
