@@ -353,19 +353,42 @@ def apply_exam_filter(d,exam):
     mask=d['subject'].astype(str).str.startswith('Calc 3') & d['topic'].astype(str).apply(lambda x:any(x.startswith(sec) for sec in secs))
     return d[mask]
 
-def pick(mode,exam,subject,topic,answer_style='Flashcards',exclude=None):
+def pick(mode,exam,subject,topic,answer_style='Flashcards',exclude=None,seen_ids=None):
     d=apply_exam_filter(stats(),exam)
     if subject!='All': d=d[d.subject==subject]
     if topic!='All': d=d[d.topic==topic]
     if answer_style=='Multiple Choice': d=d[d.choices.notna() & (d.choices.astype(str).str.strip()!='')]
     elif answer_style=='Fill in Blank': d=d[d.apply(is_fillable,axis=1)]
     elif answer_style=='Mixed Quiz': d=d[(d.choices.notna() & (d.choices.astype(str).str.strip()!='')) | d.apply(is_fillable,axis=1)]
-    if exclude and len(d)>1: d=d[d.id!=exclude]
+
+    # Do not repeat a card during the same session while unseen cards remain.
+    # Once every eligible card has been seen, a new cycle is allowed.
+    full_pool=d.copy()
+    seen_ids=set(seen_ids or [])
+    if seen_ids:
+        unseen=d[~d.id.isin(seen_ids)]
+        if not unseen.empty:
+            d=unseen
+
+    # Never show the exact same card twice in a row when another card exists.
+    if exclude is not None and len(d)>1:
+        d=d[d.id!=exclude]
+
+    if d.empty:
+        d=full_pool
+        if exclude is not None and len(d)>1:
+            d=d[d.id!=exclude]
     if d.empty:return None
+
     if mode=='Weakest First':
-        p=d.sort_values(['weakness','wrong','attempts'],ascending=[False,False,True]).head(min(12,len(d)));return p.sample(1,weights=[max(float(x),1) for x in p.weakness]).iloc[0]
+        # Prioritize weak cards, but choose from a broader unseen pool so the
+        # session has variety instead of bouncing among only a few cards.
+        p=d.sort_values(['weakness','wrong','attempts'],ascending=[False,False,True]).head(min(20,len(d)))
+        return p.sample(1,weights=[max(float(x),1) for x in p.weakness]).iloc[0]
     if mode=='Missed Only':
-        p=d[d.wrong>0];p=d if p.empty else p;return p.sample(1,weights=[max(float(x),1) for x in p.weakness]).iloc[0]
+        p=d[d.wrong>0]
+        p=d if p.empty else p
+        return p.sample(1,weights=[max(float(x),1) for x in p.weakness]).iloc[0]
     return d.sample(1).iloc[0]
 
 def streak():
@@ -468,7 +491,7 @@ def elapsed(s):
     t=datetime.fromisoformat(s);q=max(0,int((datetime.now(timezone.utc)-t).total_seconds()));return f'{q//60}:{q%60:02d}'
 
 init()
-for k,v in {'card_id':None,'show_answer':False,'show_hint':False,'sig':None,'session_start':now(),'session_seen':0,'target':12,'last_card':None,'mc_choice':None,'answer_style':'Flashcards','session_correct':0,'session_quiz_answered':0,'perfect_streak':0,'fill_value':''}.items():
+for k,v in {'card_id':None,'show_answer':False,'show_hint':False,'sig':None,'session_start':now(),'session_seen':0,'session_seen_ids':[],'target':12,'last_card':None,'mc_choice':None,'answer_style':'Flashcards','session_correct':0,'session_quiz_answered':0,'perfect_streak':0,'fill_value':''}.items():
     if k not in st.session_state:st.session_state[k]=v
 
 with st.sidebar:
@@ -487,13 +510,13 @@ with st.sidebar:
     subjects=['All']+sorted(cd.subject.unique(), key=natural_sort_key);subject=st.selectbox('Subject',subjects)
     fd=cd if subject=='All' else cd[cd.subject==subject];topics=['All']+sorted(fd.topic.unique(), key=natural_sort_key);topic=st.selectbox('Topic',topics)
     if st.button('▶ Start a New Session',type='primary',use_container_width=True):
-        st.session_state.session_start=now();st.session_state.session_seen=0;st.session_state.session_correct=0;st.session_state.session_quiz_answered=0;st.session_state.perfect_streak=0;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.rerun()
+        st.session_state.session_start=now();st.session_state.session_seen=0;st.session_state.session_seen_ids=[];st.session_state.session_correct=0;st.session_state.session_quiz_answered=0;st.session_state.perfect_streak=0;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.rerun()
     st.caption('Weakest First automatically prioritizes the cards you miss most often.')
     st.markdown(f'<div class="record-card"><div class="record-sub">🏆 PERFECT STREAK RECORD</div><div class="record-num">{get_best_quiz_streak()}</div><div class="record-sub">objective answers correct in a row</div></div>',unsafe_allow_html=True)
     st.markdown('<div class="quote">“A little progress every day adds up to big results.”</div>',unsafe_allow_html=True)
 
 sig=(mode,exam,subject,topic,answer_style)
-if sig!=st.session_state.sig:st.session_state.sig=sig;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False
+if sig!=st.session_state.sig:st.session_state.sig=sig;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.session_seen_ids=[]
 
 st.markdown('<div class="brand"><div class="brain">🧠</div><div><h2>Engineering Study Cards</h2><div class="sub">Study smarter. Master faster.</div></div></div>',unsafe_allow_html=True)
 t1,t2,t3,t4=st.tabs(['🏠 Study','▥ Progress','▱ Decks','⚙ Settings'])
@@ -508,7 +531,7 @@ with t1:
     st.markdown(f'<div class="session-banner"><div class="session-stat"><strong>{exam}</strong><span>Study target</span></div><div class="session-stat"><strong>{answer_style}</strong><span>Current answer style</span></div><div class="session-stat"><strong>{st.session_state.session_correct}/{st.session_state.session_quiz_answered}</strong><span>Quiz score this session</span></div><div class="session-stat"><strong class="perfect">{st.session_state.perfect_streak} 🔥</strong><span>Current perfect streak</span></div><div class="session-stat"><strong>{elapsed(st.session_state.session_start)}</strong><span>Session time</span></div></div>',unsafe_allow_html=True)
 
     if st.session_state.card_id is None:
-        r=pick(mode,exam,subject,topic,answer_style,st.session_state.last_card)
+        r=pick(mode,exam,subject,topic,answer_style,st.session_state.last_card,st.session_state.session_seen_ids)
         if r is not None:st.session_state.card_id=int(r.id)
     cur=stats();cur=cur[cur.id==st.session_state.card_id]
     if cur.empty:
@@ -531,7 +554,7 @@ with t1:
 
             def advance(result,conf,ans_mode):
                 record(r.id,result,conf,ans_mode)
-                st.session_state.last_card=int(r.id);st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.session_state.session_seen+=1;st.rerun()
+                st.session_state.last_card=int(r.id);st.session_state.session_seen_ids=list(dict.fromkeys(st.session_state.session_seen_ids+[int(r.id)]));st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.session_state.session_seen+=1;st.rerun()
 
             # FLASHCARD MODE — self-rated, no objective streak scoring.
             if answer_style=='Flashcards':

@@ -14,3 +14,6 @@ Deploy by replacing `app.py`, `requirements.txt`, and `README.md` in the Streaml
 
 ## Visual graph matching
 Multiple-choice graph-to-equation practice covers circle, sphere, ellipsoid, helix, and twisted cubic in the relevant UNM Calc 3 Exam 1 sections.
+
+## Session rotation fix
+Cards no longer repeat within a study session while unseen eligible cards remain. Weakest First still prioritizes weak material, but now draws from a broader unseen pool for better coverage.
