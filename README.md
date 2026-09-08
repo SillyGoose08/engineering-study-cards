@@ -1,21 +1,7 @@
-# Engineering Study Cards — Phase 1
+# Engineering Study Cards — Visual Adaptive Edition
 
-Adaptive Streamlit flashcard app that tracks missed cards and automatically prioritizes weak material.
+Visual-first Streamlit flashcards with adaptive weak-card prioritization, session tracking, and a polished dark dashboard.
 
-## Core behavior
-- Study modes: Weakest First, Missed Only, Random
-- Persistent SQLite attempt history
-- Per-card weakness score and mastery score
-- Topic mastery visuals
-- Refined study set built automatically from missed/unseen cards
-- Confidence rating after each attempt
-- Deck manager for adding custom cards
-- Seeded with Calc 3 recognition cards
+Upload `app.py`, `requirements.txt`, and `README.md` to the root of your GitHub repository and deploy `app.py` on Streamlit Community Cloud.
 
-## Run locally
-```bash
-pip install -r requirements.txt
-streamlit run app.py
-```
-
-For Streamlit Cloud, put `app.py` and `requirements.txt` in the repo root and deploy `app.py`.
+The app keeps the Phase 1 adaptive tracker and adds the redesigned study experience, four-level grading, session timer/streak/progress, Next Up queue, progress dashboard, and deck manager.
