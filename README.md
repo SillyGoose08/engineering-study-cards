@@ -44,3 +44,7 @@ Fixed the math-notation replacement crash caused by Python interpreting LaTeX ba
 ## Ellipsoid + Greek-symbol rendering fix
 - Multi-term equations such as `x^2/9+y^2/4+z^2=1` now render as separate fractions instead of a nested fraction.
 - `theta` and `pi` inside prose answer choices now render as Greek symbols.
+
+## Canonical graph-equation rendering fix
+- Added explicit LaTeX mappings for circle, sphere, ellipsoid, helix, and twisted-cubic equations.
+- The ellipsoid choice now renders as separate x, y, and z terms instead of being misread by the generic fraction parser.

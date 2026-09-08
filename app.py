@@ -229,11 +229,11 @@ def init():
     ]
     curriculum_cards = early_calc_cards + curriculum_cards
     graph_match_cards=[
-        ('Calc 3 — Ch 12','12.1 3D Coordinates','Graph Match','GRAPH_MATCH|circle','x^2+y^2=9','Circle: only x and y are needed.',['x^2+y^2=9','x^2+y^2+z^2=9','x^2/9+y^2/4+z^2=1','r(t)=<cos(t),sin(t),t>']),
-        ('Calc 3 — Ch 12','12.1 3D Coordinates','Graph Match','GRAPH_MATCH|sphere','x^2+y^2+z^2=4','Sphere: x, y, and z are squared with equal scaling.',['x^2+y^2=4','x^2+y^2+z^2=4','x^2/9+y^2/4+z^2=1','r(t)=<t,t^2,t^3>']),
-        ('Calc 3 — Ch 12','12.6 Quadric Surfaces','Graph Match','GRAPH_MATCH|ellipsoid','x^2/9+y^2/4+z^2=1','Unequal denominators create unequal semi-axis lengths.',['x^2+y^2+z^2=1','x^2/9+y^2/4+z^2=1','x^2+y^2=9','r(t)=<cos(t),sin(t),t>']),
+        ('Calc 3 — Ch 12','12.1 3D Coordinates','Graph Match','GRAPH_MATCH|circle','x^2+y^2=9','Circle: only x and y are needed.',['x^2+y^2=9','x^2+y^2+z^2=9','x^2/9 + y^2/4 + z^2 = 1','r(t)=<cos(t),sin(t),t>']),
+        ('Calc 3 — Ch 12','12.1 3D Coordinates','Graph Match','GRAPH_MATCH|sphere','x^2+y^2+z^2=4','Sphere: x, y, and z are squared with equal scaling.',['x^2+y^2=4','x^2+y^2+z^2=4','x^2/9 + y^2/4 + z^2 = 1','r(t)=<t,t^2,t^3>']),
+        ('Calc 3 — Ch 12','12.6 Quadric Surfaces','Graph Match','GRAPH_MATCH|ellipsoid','x^2/9 + y^2/4 + z^2 = 1','Unequal denominators create unequal semi-axis lengths.',['x^2+y^2+z^2=1','x^2/9 + y^2/4 + z^2 = 1','x^2+y^2=9','r(t)=<cos(t),sin(t),t>']),
         ('Calc 3 — Ch 13','13.1 Vector Functions','Graph Match','GRAPH_MATCH|helix','r(t)=<cos(t),sin(t),t/pi>','Circular x-y motion plus changing z creates a helix.',['r(t)=<cos(t),sin(t),t/pi>','r(t)=<t,t^2,t^3>','x^2+y^2+z^2=4','x^2+y^2=9']),
-        ('Calc 3 — Ch 13','13.1 Vector Functions','Graph Match','GRAPH_MATCH|twisted_cubic','r(t)=<t,t^2,t^3>','Coordinate powers 1, 2, and 3 create the twisted cubic.',['r(t)=<t,t^2,t^3>','r(t)=<cos(t),sin(t),t/pi>','x^2/9+y^2/4+z^2=1','x^2+y^2+z^2=4']),
+        ('Calc 3 — Ch 13','13.1 Vector Functions','Graph Match','GRAPH_MATCH|twisted_cubic','r(t)=<t,t^2,t^3>','Coordinate powers 1, 2, and 3 create the twisted cubic.',['r(t)=<t,t^2,t^3>','r(t)=<cos(t),sin(t),t/pi>','x^2/9 + y^2/4 + z^2 = 1','x^2+y^2+z^2=4']),
     ]
     curriculum_cards.extend(graph_match_cards)
 
@@ -422,6 +422,25 @@ def expr_latex(raw):
     """Convert the compact notation stored in the deck into readable LaTeX."""
     import re
     s=str(raw).strip()
+
+    # Canonical graph/equation forms. These bypass the generic fraction parser
+    # so multi-term equations always render exactly as intended.
+    canon=re.sub(r'\s+','',s)
+    canonical_forms={
+        'x^2+y^2=9': r'x^{2}+y^{2}=9',
+        'x^2+y^2=4': r'x^{2}+y^{2}=4',
+        'x^2+y^2+z^2=1': r'x^{2}+y^{2}+z^{2}=1',
+        'x^2+y^2+z^2=4': r'x^{2}+y^{2}+z^{2}=4',
+        'x^2+y^2+z^2=9': r'x^{2}+y^{2}+z^{2}=9',
+        'x^2/9 + y^2/4 + z^2 = 1': r'\frac{x^{2}}{9}+\frac{y^{2}}{4}+z^{2}=1',
+        'x^2/9+y^2/4+z^2/1=1': r'\frac{x^{2}}{9}+\frac{y^{2}}{4}+\frac{z^{2}}{1}=1',
+        'x^2/4+y^2/9+z^2=1': r'\frac{x^{2}}{4}+\frac{y^{2}}{9}+z^{2}=1',
+        'r(t)=<cos(t),sin(t),t>': r'\mathbf r(t)=\langle \cos t,\sin t,t\rangle',
+        'r(t)=<cos(t),sin(t),t/pi>': r'\mathbf r(t)=\langle \cos t,\sin t,\frac{t}{\pi}\rangle',
+        'r(t)=<t,t^2,t^3>': r'\mathbf r(t)=\langle t,t^{2},t^{3}\rangle',
+    }
+    if canon in canonical_forms:
+        return canonical_forms[canon]
     # coordinate pairs / ordered pairs
     if re.fullmatch(r'\([^()]+,[^()]+\)',s):
         a,b=[x.strip() for x in s[1:-1].split(',',1)]
