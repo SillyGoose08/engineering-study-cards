@@ -264,11 +264,18 @@ def get_best_quiz_streak():
 def save_best_quiz_streak(n):
     c=conn();c.execute("INSERT INTO records(key,value) VALUES ('best_quiz_streak',?) ON CONFLICT(key) DO UPDATE SET value=MAX(value,excluded.value)",(int(n),));c.commit();c.close()
 
-def is_fillable(r):
+def is_short_fill(r):
+    """Use fill-in only for genuinely short recall answers (roughly 1–4 typed characters)."""
     ans=str(r.back).strip()
-    if len(ans)>34:return False
-    bad=['because ','integrate ','use ','requires ','cross product:','dot product:','separate ','collision ','arbitrary constant']
-    return not any(x in ans.lower() for x in bad)
+    compact=re.sub(r'\s+','',ans)
+    if not compact or len(compact)>4:return False
+    # Keep short symbolic/numeric answers as recall prompts; avoid short prose words.
+    if re.search(r'[A-Za-z]{3,}',compact) and not re.search(r'[=+\-*/^0-9]',compact):
+        return False
+    return True
+
+def is_fillable(r):
+    return is_short_fill(r)
 
 def normalize_answer(x):
     import re
@@ -357,9 +364,9 @@ def pick(mode,exam,subject,topic,answer_style='Flashcards',exclude=None,seen_ids
     d=apply_exam_filter(stats(),exam)
     if subject!='All': d=d[d.subject==subject]
     if topic!='All': d=d[d.topic==topic]
-    if answer_style=='Multiple Choice': d=d[d.choices.notna() & (d.choices.astype(str).str.strip()!='')]
-    elif answer_style=='Fill in Blank': d=d[d.apply(is_fillable,axis=1)]
-    elif answer_style=='Mixed Quiz': d=d[(d.choices.notna() & (d.choices.astype(str).str.strip()!='')) | d.apply(is_fillable,axis=1)]
+    if answer_style=='Fill in Blank': d=d[d.apply(is_short_fill,axis=1)]
+    elif answer_style in ('Multiple Choice','Mixed Quiz'):
+        d=d.copy()
 
     # Do not repeat a card during the same session while unseen cards remain.
     # Once every eligible card has been seen, a new cycle is allowed.
@@ -471,6 +478,9 @@ def question_markup(raw):
     q=q.replace('0° (0 rad)',r'$0^\circ\;(0\text{ rad})$')
     q=q.replace('90° (pi/2)',r'$90^\circ\;(\pi/2)$')
     q=q.replace('(cos theta, sin theta)',r'$(\cos\theta,\sin\theta)$')
+    # Render common named mathematical symbols as notation in prose questions.
+    q=re.sub(r'(?<![A-Za-z\\])theta(?![A-Za-z])',r'$\theta$',q)
+    q=re.sub(r'(?<![A-Za-z\\])pi(?![A-Za-z])',r'$\pi$',q)
     return 'md',q
 
 def option_markup(raw):
@@ -487,6 +497,44 @@ def option_markup(raw):
     if not mathish:
         return esc(s)
     return f'${expr_latex(s)}$'
+def objective_choices(r, exam, subject, topic):
+    """Return stored MC options or build a reasonable same-topic set for recognition cards."""
+    if pd.notna(r.get('choices',None)) and str(r.get('choices','')).strip():
+        return str(r['choices']).split('|||')
+    correct=str(r.back).strip()
+    d=apply_exam_filter(stats(),exam)
+    # Prefer distractors from the same topic, then same subject, then current exam.
+    pools=[]
+    same_topic=d[(d.topic==r.topic) & (d.id!=r.id)]
+    same_subject=d[(d.subject==r.subject) & (d.id!=r.id)]
+    pools=[same_topic,same_subject,d[d.id!=r.id]]
+    distractors=[]
+    seen={normalize_answer(correct)}
+    for pool in pools:
+        if pool.empty: continue
+        # Weak/randomized candidates keep options varied between sessions.
+        for ans in pool.sample(frac=1).back.astype(str).tolist():
+            key=normalize_answer(ans)
+            if not key or key in seen: continue
+            # Keep prose with prose and formula-like answers with formula-like answers when possible.
+            correct_math=bool(re.search(r'[=^/<>]|sqrt|sin|cos|tan|ln|\d',correct,re.I))
+            ans_math=bool(re.search(r'[=^/<>]|sqrt|sin|cos|tan|ln|\d',ans,re.I))
+            if len(distractors)<2 and correct_math!=ans_math:
+                continue
+            distractors.append(ans); seen.add(key)
+            if len(distractors)>=3: break
+        if len(distractors)>=3: break
+    # Safe fallbacks if a narrow filter does not provide enough distinct answers.
+    fallbacks=['0','1','A scalar','A vector','Dot product','Cross product','None of these']
+    for ans in fallbacks:
+        if len(distractors)>=3: break
+        key=normalize_answer(ans)
+        if key not in seen:
+            distractors.append(ans); seen.add(key)
+    choices=[correct]+distractors[:3]
+    random.shuffle(choices)
+    return choices
+
 def elapsed(s):
     t=datetime.fromisoformat(s);q=max(0,int((datetime.now(timezone.utc)-t).total_seconds()));return f'{q//60}:{q%60:02d}'
 
@@ -588,10 +636,15 @@ with t1:
                 st.markdown('<div class="objective-note">Flashcard ratings improve the weakness tracker, but do not affect your Perfect Streak record.</div>',unsafe_allow_html=True)
 
             else:
-                # Choose objective rendering. Mixed Quiz uses MCQ when choices exist, otherwise fill-in.
+                # Objective design: primarily multiple choice. In Mixed Quiz, only very
+                # short recall answers (about 1–4 characters) become fill-in-the-blank.
                 has_mc=(pd.notna(r.get('choices',None)) and str(r.get('choices','')).strip())
-                render_mc = answer_style=='Multiple Choice' or (answer_style=='Mixed Quiz' and has_mc)
-                if answer_style=='Fill in Blank':render_mc=False
+                if answer_style=='Multiple Choice':
+                    render_mc=True
+                elif answer_style=='Fill in Blank':
+                    render_mc=False
+                else:  # Mixed Quiz
+                    render_mc=not is_short_fill(r)
                 with st.container(key='flashcard'):
                     st.markdown(f'<span class="count">Card {idx} of {st.session_state.target} ☆</span><span class="pill">{esc(r.subject)}</span><span class="pill blue">{esc(r.topic)}</span>',unsafe_allow_html=True)
                     st.markdown('<div style="height:12px"></div>',unsafe_allow_html=True)
@@ -604,8 +657,8 @@ with t1:
                     st.markdown('<div class="rule"></div>',unsafe_allow_html=True)
                     st.markdown(f'<div class="hint">💡 {hint}</div>',unsafe_allow_html=True)
 
-                if render_mc and has_mc:
-                    choices=str(r['choices']).split('|||');letters=['A','B','C','D'][:len(choices)]
+                if render_mc:
+                    choices=objective_choices(r,exam,subject,topic);letters=['A','B','C','D'][:len(choices)]
                     st.markdown('#### Choose the best answer')
                     cols=st.columns(2)
                     for i,ch in enumerate(choices):
@@ -615,9 +668,9 @@ with t1:
                     x,y=st.columns(2)
                     if x.button('💡 Hide Hint' if st.session_state.show_hint else '💡 Show Hint',use_container_width=True):st.session_state.show_hint=not st.session_state.show_hint;st.rerun()
                     if y.button('✓ Submit Answer',type='primary',use_container_width=True,disabled=choice is None):
-                        correct=(choice==str(r.back));objective_result(correct);st.session_state.mc_choice=choice;st.session_state.show_answer=True;st.rerun()
+                        correct=answers_match(choice,r.back);objective_result(correct);st.session_state.mc_choice=choice;st.session_state.show_answer=True;st.rerun()
                     if st.session_state.show_answer and st.session_state.mc_choice is not None:
-                        correct=(st.session_state.mc_choice==str(r.back));cls='correct-glow' if correct else 'wrong-glow';icon='✅ Correct!' if correct else '❌ Not quite'
+                        correct=answers_match(st.session_state.mc_choice,r.back);cls='correct-glow' if correct else 'wrong-glow';icon='✅ Correct!' if correct else '❌ Not quite'
                         st.markdown(f'<div class="quiz-answer {cls}"><strong>{icon}</strong></div>',unsafe_allow_html=True)
                         st.markdown('**Correct answer:**')
                         if any(ch in str(r.back) for ch in '^/()'):

@@ -17,3 +17,6 @@ Multiple-choice graph-to-equation practice covers circle, sphere, ellipsoid, hel
 
 ## Session rotation fix
 Cards no longer repeat within a study session while unseen eligible cards remain. Weakest First still prioritizes weak material, but now draws from a broader unseen pool for better coverage.
+
+## Question-format update
+Mixed Quiz is now primarily multiple choice. Only short recall answers of roughly 1–4 typed characters use fill-in-the-blank. Recognition cards without stored choices receive dynamically generated same-topic distractors. Common symbols such as theta and pi render as mathematical notation in question text.
