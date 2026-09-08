@@ -5,6 +5,17 @@ import pandas as pd
 import streamlit as st
 
 DB=Path('flashcards.db')
+
+
+def natural_sort_key(value):
+    """Sort labels with embedded numbers in human curriculum order.
+
+    Examples: Ch 2 comes before Ch 10, and 12.4 comes before 12.10.
+    """
+    import re
+    return [int(part) if part.isdigit() else part.casefold()
+            for part in re.split(r"(\d+)", str(value))]
+
 st.set_page_config(page_title='Engineering Study Cards',page_icon='🧠',layout='wide',initial_sidebar_state='expanded')
 
 st.markdown('''<style>
@@ -297,8 +308,24 @@ def answers_match(user,expected):
     except:
         return False
 
-def pick(mode,subject,topic,answer_style='Flashcards',exclude=None):
-    d=stats();
+EXAM_SECTIONS={
+    'Calc 3 — Exam 1': ['12.1','12.2','12.3','12.4','12.5','12.6','13.1'],
+    'Calc 3 — Exam 2': ['13.2','13.3','13.4','14.1','14.2','14.3','14.4','14.5','14.6','14.7','14.8'],
+    'Calc 3 — Exam 3': ['15.1','15.2','15.3','15.4','15.6','15.7','15.8','16.1','16.2','16.3','16.4'],
+    'Calc 3 — Final Exam': ['12.1','12.2','12.3','12.4','12.5','12.6','13.1','13.2','13.3','13.4','14.1','14.2','14.3','14.4','14.5','14.6','14.7','14.8','15.1','15.2','15.3','15.4','15.6','15.7','15.8','16.1','16.2','16.3','16.4','16.5'],
+}
+
+def apply_exam_filter(d,exam):
+    if exam=='All Material': return d
+    secs=EXAM_SECTIONS.get(exam)
+    if not secs: return d
+    # The UNM exam filter intentionally removes textbook sections not assigned
+    # for that exam, even if those cards remain available under All Material.
+    mask=d['subject'].astype(str).str.startswith('Calc 3') & d['topic'].astype(str).apply(lambda x:any(x.startswith(sec) for sec in secs))
+    return d[mask]
+
+def pick(mode,exam,subject,topic,answer_style='Flashcards',exclude=None):
+    d=apply_exam_filter(stats(),exam)
     if subject!='All': d=d[d.subject==subject]
     if topic!='All': d=d[d.topic==topic]
     if answer_style=='Multiple Choice': d=d[d.choices.notna() & (d.choices.astype(str).str.strip()!='')]
@@ -411,18 +438,25 @@ for k,v in {'card_id':None,'show_answer':False,'show_hint':False,'sig':None,'ses
 with st.sidebar:
     st.markdown('<div class="brand"><div class="brain">🧠</div><div><h2>Study Cards</h2><div class="sub">Study smarter. Master faster.</div></div></div>',unsafe_allow_html=True)
     st.markdown('### Study Controls')
-    answer_style=st.radio('Answer style',['Flashcards','Multiple Choice','Fill in Blank','Mixed Quiz'],index=['Flashcards','Multiple Choice','Fill in Blank','Mixed Quiz'].index(st.session_state.answer_style),help='Perfect streaks count only objective quiz answers: Multiple Choice and Fill in Blank.')
+    answer_style_options=['Flashcards','Multiple Choice','Fill in Blank','Mixed Quiz']
+    saved_answer_style=st.session_state.get('answer_style','Flashcards')
+    if saved_answer_style not in answer_style_options:
+        saved_answer_style='Flashcards'
+        st.session_state.answer_style=saved_answer_style
+    answer_style=st.radio('Answer style',answer_style_options,index=answer_style_options.index(saved_answer_style),help='Perfect streaks count only objective quiz answers: Multiple Choice and Fill in Blank.')
     st.session_state.answer_style=answer_style
     mode=st.radio('Card order',['Weakest First','Missed Only','Random'])
-    cd=cards_df();subjects=['All']+sorted(cd.subject.unique());subject=st.selectbox('Subject',subjects)
-    fd=cd if subject=='All' else cd[cd.subject==subject];topics=['All']+sorted(fd.topic.unique());topic=st.selectbox('Topic',topics)
+    exam=st.selectbox('Study for', ['All Material','Calc 3 — Exam 1','Calc 3 — Exam 2','Calc 3 — Exam 3','Calc 3 — Final Exam'], help='Uses the UNM MATH 2531 exam coverage so you can study only the sections assigned to each exam.')
+    cd=apply_exam_filter(cards_df(),exam)
+    subjects=['All']+sorted(cd.subject.unique(), key=natural_sort_key);subject=st.selectbox('Subject',subjects)
+    fd=cd if subject=='All' else cd[cd.subject==subject];topics=['All']+sorted(fd.topic.unique(), key=natural_sort_key);topic=st.selectbox('Topic',topics)
     if st.button('▶ Start a New Session',type='primary',use_container_width=True):
         st.session_state.session_start=now();st.session_state.session_seen=0;st.session_state.session_correct=0;st.session_state.session_quiz_answered=0;st.session_state.perfect_streak=0;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.rerun()
     st.caption('Weakest First automatically prioritizes the cards you miss most often.')
     st.markdown(f'<div class="record-card"><div class="record-sub">🏆 PERFECT STREAK RECORD</div><div class="record-num">{get_best_quiz_streak()}</div><div class="record-sub">objective answers correct in a row</div></div>',unsafe_allow_html=True)
     st.markdown('<div class="quote">“A little progress every day adds up to big results.”</div>',unsafe_allow_html=True)
 
-sig=(mode,subject,topic,answer_style)
+sig=(mode,exam,subject,topic,answer_style)
 if sig!=st.session_state.sig:st.session_state.sig=sig;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False
 
 st.markdown('<div class="brand"><div class="brain">🧠</div><div><h2>Engineering Study Cards</h2><div class="sub">Study smarter. Master faster.</div></div></div>',unsafe_allow_html=True)
@@ -430,15 +464,15 @@ t1,t2,t3,t4=st.tabs(['🏠 Study','▥ Progress','▱ Decks','⚙ Settings'])
 
 with t1:
     st.markdown('<div class="hero"><div class="badge">🎯 Same Effort.<br>Bigger Results.</div><h1>Engineering Study Cards</h1><p>Adaptive flashcards that focus on what you need most.</p></div>',unsafe_allow_html=True)
-    d=stats();sc=d.copy()
+    d=apply_exam_filter(stats(),exam);sc=d.copy()
     if subject!='All':sc=sc[sc.subject==subject]
     if topic!='All':sc=sc[sc.topic==topic]
     a=int(sc.attempts.sum()) if len(sc) else 0;c=int(sc.correct.sum()) if len(sc) else 0;ac=100*c/a if a else 0;w=int((sc.weakness>=60).sum()) if len(sc) else 0;m=float(sc.mastery.mean()) if len(sc) else 0
     st.markdown(f'<div class="metrics"><div class="mcard"><div class="mlabel">📗 Total Attempts</div><div class="mval">{a}</div><div class="mfoot">Every answer improves your model</div></div><div class="mcard"><div class="mlabel">🎯 Accuracy</div><div class="mval">{ac:.0f}%</div><div class="mfoot">Correct across this filter</div></div><div class="mcard"><div class="mlabel">⚠️ Weak Cards</div><div class="mval">{w}</div><div class="mfoot">Priority score ≥ 60</div></div><div class="mcard"><div class="mlabel">🏆 Best Perfect Streak</div><div class="mval perfect">{get_best_quiz_streak()}</div><div class="mfoot">MCQ + fill-in answers</div></div></div>',unsafe_allow_html=True)
-    st.markdown(f'<div class="session-banner"><div class="session-stat"><strong>{answer_style}</strong><span>Current answer style</span></div><div class="session-stat"><strong>{st.session_state.session_correct}/{st.session_state.session_quiz_answered}</strong><span>Quiz score this session</span></div><div class="session-stat"><strong class="perfect">{st.session_state.perfect_streak} 🔥</strong><span>Current perfect streak</span></div><div class="session-stat"><strong>{elapsed(st.session_state.session_start)}</strong><span>Session time</span></div></div>',unsafe_allow_html=True)
+    st.markdown(f'<div class="session-banner"><div class="session-stat"><strong>{exam}</strong><span>Study target</span></div><div class="session-stat"><strong>{answer_style}</strong><span>Current answer style</span></div><div class="session-stat"><strong>{st.session_state.session_correct}/{st.session_state.session_quiz_answered}</strong><span>Quiz score this session</span></div><div class="session-stat"><strong class="perfect">{st.session_state.perfect_streak} 🔥</strong><span>Current perfect streak</span></div><div class="session-stat"><strong>{elapsed(st.session_state.session_start)}</strong><span>Session time</span></div></div>',unsafe_allow_html=True)
 
     if st.session_state.card_id is None:
-        r=pick(mode,subject,topic,answer_style,st.session_state.last_card)
+        r=pick(mode,exam,subject,topic,answer_style,st.session_state.last_card)
         if r is not None:st.session_state.card_id=int(r.id)
     cur=stats();cur=cur[cur.id==st.session_state.card_id]
     if cur.empty:
