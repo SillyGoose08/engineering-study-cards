@@ -1,7 +1,17 @@
-# Engineering Study Cards — Visual Adaptive Edition
+# Engineering Study Cards — Visual Adaptive + Foundations MCQ
 
-Visual-first Streamlit flashcards with adaptive weak-card prioritization, session tracking, and a polished dark dashboard.
+Adaptive Streamlit study app with a weakness tracker and a curated multiple-choice **Math Foundations** deck.
 
-Upload `app.py`, `requirements.txt`, and `README.md` to the root of your GitHub repository and deploy `app.py` on Streamlit Community Cloud.
+New question banks:
+- Common derivatives
+- Common integrals
+- Exponentials
+- Natural logs (algebra + calculus)
+- Trig identities
+- Unit circle
+- Trig derivatives & integrals
 
-The app keeps the Phase 1 adaptive tracker and adds the redesigned study experience, four-level grading, session timer/streak/progress, Next Up queue, progress dashboard, and deck manager.
+Multiple-choice answers are graded automatically, then the adaptive weakness model increases the frequency of concepts you miss. Existing progress databases are migrated safely; new foundation cards are inserted only if their question text is not already present.
+
+Run with:
+`streamlit run app.py`

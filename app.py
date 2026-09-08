@@ -39,6 +39,8 @@ def conn():
 
 def init():
     c=conn();c.executescript('''CREATE TABLE IF NOT EXISTS cards(id INTEGER PRIMARY KEY AUTOINCREMENT,subject TEXT,topic TEXT,card_type TEXT,front TEXT,back TEXT,hint TEXT,created_at TEXT);CREATE TABLE IF NOT EXISTS attempts(id INTEGER PRIMARY KEY AUTOINCREMENT,card_id INTEGER,result TEXT,confidence INTEGER,attempted_at TEXT);''');c.commit()
+    cols=[r[1] for r in c.execute('PRAGMA table_info(cards)').fetchall()]
+    if 'choices' not in cols: c.execute('ALTER TABLE cards ADD COLUMN choices TEXT');c.commit()
     if c.execute('SELECT COUNT(*) FROM cards').fetchone()[0]==0:
         cards=[
         ('Calc 3','Vector integrals','Recognition','What do you do when integrating a vector-valued function?','Integrate each component separately.','Treat i, j, and k components as separate ordinary integrals.'),
@@ -52,6 +54,11 @@ def init():
         ('Calc 3','Line intersection','Process','How do you find the intersection point of two parametric lines?','Use separate parameters, set x/y/z equal, solve, then plug one parameter back into its line.','Different parameters are allowed for path intersection.'),
         ('Calc 3','Particle motion','Recognition','What is the key difference between path intersection and particle collision?','Collision requires the same point at the same time, so use the same time parameter.','Intersection allows different parameters; collision does not.')]
         c.executemany('INSERT INTO cards(subject,topic,card_type,front,back,hint,created_at) VALUES (?,?,?,?,?,?,?)',[(a,b,d,e,f,g,now()) for a,b,d,e,f,g in cards]);c.commit()
+    mcqs=[('Common derivatives', 'd/dx(x^5) = ?', '5x^4', ['x^4', '5x^4', '5x^5', 'x^6/6'], 'Power rule: bring 5 down and subtract 1 from the exponent.'), ('Common derivatives', 'd/dx(1/x) = ?', '-1/x^2', ['1/x^2', '-1/x^2', 'ln|x|', '-x'], 'Rewrite 1/x as x^-1.'), ('Common derivatives', 'd/dx(sqrt(x)) = ?', '1/(2sqrt(x))', ['sqrt(x)/2', '1/(2sqrt(x))', '2sqrt(x)', 'x^(-2)'], 'Rewrite sqrt(x) as x^(1/2).'), ('Common derivatives', 'd/dx(ln x) = ?', '1/x', ['ln x', 'x', '1/x', 'e^x'], 'Standard natural-log derivative.'), ('Common derivatives', 'd/dx(e^x) = ?', 'e^x', ['xe^(x-1)', '1/e^x', 'e^x', 'x e^x'], 'e^x is its own derivative.'), ('Common derivatives', 'Which rule is central to d/dx[(x^2+1)^5]?', 'Chain rule', ['Product rule', 'Quotient rule', 'Chain rule', 'Integration by parts'], 'Differentiate the outside, then the inside.'), ('Common integrals', '∫ x^4 dx = ?', 'x^5/5 + C', ['4x^3 + C', 'x^5/5 + C', '5x^5 + C', 'x^4/4 + C'], 'Add 1 to the exponent, then divide by it.'), ('Common integrals', '∫ 1/x dx = ?', 'ln|x| + C', ['1/x^2 + C', 'x ln x + C', 'ln|x| + C', 'e^x + C'], 'This is the special logarithm integral.'), ('Common integrals', '∫ e^x dx = ?', 'e^x + C', ['xe^x + C', 'e^x + C', 'ln(e^x)+C', 'e^(x+1)+C'], 'e^x is its own antiderivative.'), ('Common integrals', '∫ 1/(1+x^2) dx = ?', 'arctan(x) + C', ['arcsin(x)+C', 'ln(1+x^2)+C', 'arctan(x) + C', 'tan(x)+C'], 'Recognize the inverse-tangent pattern.'), ('Common integrals', 'For [F(x)]_a^b, which calculation is correct?', 'F(b) - F(a)', ['F(a)-F(b)', 'F(b)+F(a)', 'F(b)-F(a)', 'F(a)F(b)'], 'Upper bound minus lower bound.'), ('Common integrals', 'What does +C represent?', 'An arbitrary constant', ['The upper bound', 'An arbitrary constant', 'A chain-rule factor', 'The x-intercept'], 'Differentiation loses constants.'), ('Exponentials', 'e^0 = ?', '1', ['0', '1', 'e', 'undefined'], 'Any nonzero base to the zero power is 1.'), ('Exponentials', 'e^(-1) is approximately:', '0.368', ['-2.718', '0', '0.368', '2.718'], 'e^-1 = 1/e.'), ('Exponentials', 'e^(-x) is equivalent to:', '1/e^x', ['-e^x', '1/e^x', 'e^x', 'x/e'], 'Negative exponent means reciprocal.'), ('Exponentials', 'e^a · e^b = ?', 'e^(a+b)', ['e^(ab)', 'e^(a+b)', 'e^(a-b)', '2e^(a+b)'], 'Same base: add exponents when multiplying.'), ('Exponentials', 'd/dx(e^(3x)) = ?', '3e^(3x)', ['e^(3x)', '3e^x', '3e^(3x)', 'e^(3x-1)'], 'Use the chain rule.'), ('Exponentials', '∫ e^(2x) dx = ?', '(1/2)e^(2x) + C', ['2e^(2x)+C', 'e^(2x)+C', '(1/2)e^(2x) + C', 'e^(x^2)+C'], 'Reverse the chain rule: divide by 2.'), ('Natural logs', 'ln(1) = ?', '0', ['1', '0', 'e', 'undefined'], 'Because e^0=1.'), ('Natural logs', 'ln(e) = ?', '1', ['0', '1', 'e', '-1'], 'Because e^1=e.'), ('Natural logs', 'ln(e^x) = ?', 'x', ['e^x', '1/x', 'x', 'ln x'], 'ln and e^x are inverse functions.'), ('Natural logs', 'ln(ab) = ?', 'ln a + ln b', ['ln a · ln b', 'ln a + ln b', 'ln a - ln b', 'a ln b'], 'Product rule for logarithms.'), ('Natural logs', 'ln(a/b) = ?', 'ln a - ln b', ['ln a + ln b', 'ln a / ln b', 'ln a - ln b', 'b ln a'], 'Quotient rule for logarithms.'), ('Natural logs', 'ln(a^k) = ?', 'k ln a', ['(ln a)^k', 'k + ln a', 'k ln a', 'ln(ka)'], 'The exponent moves in front.'), ('Natural logs', 'If ln x = 2, then x = ?', 'e^2', ['2e', 'ln 2', 'e^2', '1/e^2'], 'Exponentiate both sides with base e.'), ('Natural logs', 'd/dx[ln(g(x))] = ?', "g'(x)/g(x)", ['1/g(x)', "g(x)/g'(x)", "g'(x)/g(x)", "ln(g'(x))"], 'Chain rule for ln.'), ('Trig identities', 'Which is the Pythagorean identity?', 'sin^2(theta) + cos^2(theta) = 1', ['sin(theta)+cos(theta)=1', 'sin^2(theta) + cos^2(theta) = 1', 'tan^2(theta)+cos^2(theta)=1', 'sec(theta)+csc(theta)=1'], 'The foundational trig identity.'), ('Trig identities', 'tan(theta) = ?', 'sin(theta)/cos(theta)', ['cos(theta)/sin(theta)', 'sin(theta)/cos(theta)', '1/sin(theta)', '1/cos(theta)'], 'Tangent is sine over cosine.'), ('Trig identities', 'sec(theta) = ?', '1/cos(theta)', ['1/sin(theta)', '1/cos(theta)', 'sin(theta)/cos(theta)', 'cos(theta)/sin(theta)'], 'Secant is reciprocal cosine.'), ('Trig identities', '1 + tan^2(theta) = ?', 'sec^2(theta)', ['csc^2(theta)', 'sec^2(theta)', '1', 'cot^2(theta)'], 'Divide the Pythagorean identity by cos^2(theta).'), ('Trig identities', '1 + cot^2(theta) = ?', 'csc^2(theta)', ['sec^2(theta)', 'csc^2(theta)', 'tan^2(theta)', '1'], 'Divide the Pythagorean identity by sin^2(theta).'), ('Unit circle', 'At 0° (0 rad), (cos theta, sin theta) = ?', '(1, 0)', ['(0, 1)', '(1, 0)', '(-1, 0)', '(0, -1)'], 'Positive x-axis.'), ('Unit circle', 'At 90° (pi/2), (cos theta, sin theta) = ?', '(0, 1)', ['(1, 0)', '(0, 1)', '(-1, 0)', '(0, -1)'], 'Top of the unit circle.'), ('Unit circle', 'sin(pi/4) = ?', 'sqrt(2)/2', ['1/2', 'sqrt(2)/2', 'sqrt(3)/2', '1'], '45° has equal x and y magnitudes.'), ('Unit circle', 'cos(pi/3) = ?', '1/2', ['1/2', 'sqrt(2)/2', 'sqrt(3)/2', '0'], 'pi/3 = 60°.'), ('Unit circle', 'sin(pi/6) = ?', '1/2', ['sqrt(3)/2', 'sqrt(2)/2', '1/2', '1'], 'pi/6 = 30°.'), ('Unit circle', 'In Quadrant II, which signs are correct?', 'sin positive, cos negative', ['sin +, cos +', 'sin positive, cos negative', 'sin -, cos -', 'sin -, cos +'], 'Coordinates are (-,+).'), ('Unit circle', 'In Quadrant IV, which signs are correct?', 'sin negative, cos positive', ['sin negative, cos positive', 'sin +, cos -', 'sin -, cos -', 'sin +, cos +'], 'Coordinates are (+,-).'), ('Trig derivatives & integrals', 'd/dx(sin x) = ?', 'cos x', ['-cos x', 'cos x', 'sin x', '-sin x'], 'Standard trig derivative.'), ('Trig derivatives & integrals', 'd/dx(cos x) = ?', '-sin x', ['sin x', '-sin x', 'cos x', '-cos x'], 'Cosine differentiates to negative sine.'), ('Trig derivatives & integrals', 'd/dx(tan x) = ?', 'sec^2 x', ['csc^2 x', 'sec^2 x', 'sec x tan x', '-csc x cot x'], 'Standard trig derivative.'), ('Trig derivatives & integrals', 'd/dx(sec x) = ?', 'sec x tan x', ['sec^2 x', 'sec x tan x', '-csc x cot x', 'tan x'], 'Standard trig derivative.'), ('Trig derivatives & integrals', 'd/dx(csc x) = ?', '-csc x cot x', ['csc x cot x', '-csc x cot x', 'sec x tan x', '-csc^2 x'], 'Cosecant derivative carries a negative.'), ('Trig derivatives & integrals', 'd/dx(cot x) = ?', '-csc^2 x', ['csc^2 x', '-csc^2 x', 'sec^2 x', '-sec^2 x'], 'Cotangent derivative is negative cosecant squared.'), ('Trig derivatives & integrals', '∫ cos x dx = ?', 'sin x + C', ['-sin x+C', 'sin x + C', 'cos x+C', 'tan x+C'], 'Reverse d/dx(sin x)=cos x.'), ('Trig derivatives & integrals', '∫ sin x dx = ?', '-cos x + C', ['cos x+C', '-cos x + C', 'sin x+C', '-sin x+C'], 'Reverse d/dx(-cos x)=sin x.'), ('Trig derivatives & integrals', '∫ sec^2 x dx = ?', 'tan x + C', ['sec x+C', 'tan x + C', 'cot x+C', '-cot x+C'], 'Reverse d/dx(tan x)=sec^2 x.'), ('Trig derivatives & integrals', '∫ csc^2 x dx = ?', '-cot x + C', ['cot x+C', '-cot x + C', 'csc x+C', 'tan x+C'], 'Reverse d/dx(cot x)=-csc^2 x.'), ('Trig derivatives & integrals', '∫ sec x tan x dx = ?', 'sec x + C', ['tan x+C', 'sec x + C', '-csc x+C', 'sec^2 x+C'], 'Reverse d/dx(sec x)=sec x tan x.'), ('Trig derivatives & integrals', '∫ csc x cot x dx = ?', '-csc x + C', ['csc x+C', '-csc x + C', 'cot x+C', '-cot x+C'], 'Reverse d/dx(csc x)=-csc x cot x.')]
+    for top,front,back,choices,hint in mcqs:
+        if not c.execute('SELECT 1 FROM cards WHERE front=?',(front,)).fetchone():
+            c.execute('INSERT INTO cards(subject,topic,card_type,front,back,hint,created_at,choices) VALUES (?,?,?,?,?,?,?,?)',('Math Foundations',top,'Multiple Choice',front,back,hint,now(),'|||'.join(choices)))
+    c.commit()
     c.close()
 
 def cards_df():
@@ -92,7 +99,7 @@ def elapsed(s):
     t=datetime.fromisoformat(s);q=max(0,int((datetime.now(timezone.utc)-t).total_seconds()));return f'{q//60}:{q%60:02d}'
 
 init()
-for k,v in {'card_id':None,'show_answer':False,'show_hint':False,'sig':None,'session_start':now(),'session_seen':0,'target':12,'last_card':None}.items():
+for k,v in {'card_id':None,'show_answer':False,'show_hint':False,'sig':None,'session_start':now(),'session_seen':0,'target':12,'last_card':None,'mc_choice':None}.items():
     if k not in st.session_state:st.session_state[k]=v
 
 with st.sidebar:
@@ -129,19 +136,38 @@ with t1:
         with left:
             idx=min(st.session_state.session_seen+1,st.session_state.target);hint=esc(r.hint) if st.session_state.show_hint else 'Try to name the method or recognition cue before revealing the answer.'
             st.markdown(f'<div class="flash"><span class="count">Card {idx} of {st.session_state.target} ☆</span><span class="pill">{esc(r.subject)}</span><span class="pill blue">{esc(r.topic)}</span><div class="question">{esc(r.front)}</div><div class="rule"></div><div class="hint">💡 {hint}</div></div>',unsafe_allow_html=True)
-            x,y=st.columns(2)
-            if x.button('💡 Hide Hint' if st.session_state.show_hint else '💡 Show Hint',use_container_width=True):st.session_state.show_hint=not st.session_state.show_hint;st.rerun()
-            if not st.session_state.show_answer:
-                if y.button('✨ Reveal Answer',type='primary',use_container_width=True):st.session_state.show_answer=True;st.rerun()
+            def advance(result,conf):
+                record(r.id,result,conf);st.session_state.last_card=int(r.id);st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.session_seen+=1;st.rerun()
+            is_mc=(str(r.card_type)=='Multiple Choice' and 'choices' in r.index and pd.notna(r['choices']) and str(r['choices']).strip())
+            if is_mc:
+                choices=str(r['choices']).split('|||')
+                st.markdown('#### Choose the best answer')
+                choice=st.radio('Answer choices',choices,index=None,key=f"mcq_{int(r.id)}",label_visibility='collapsed')
+                x,y=st.columns(2)
+                if x.button('💡 Hide Hint' if st.session_state.show_hint else '💡 Show Hint',use_container_width=True):st.session_state.show_hint=not st.session_state.show_hint;st.rerun()
+                if y.button('✓ Submit Answer',type='primary',use_container_width=True,disabled=choice is None):st.session_state.mc_choice=choice;st.session_state.show_answer=True;st.rerun()
+                if st.session_state.show_answer and st.session_state.mc_choice is not None:
+                    correct=(st.session_state.mc_choice==str(r.back)); icon='✅' if correct else '❌'; msg='Correct!' if correct else f'Not quite — you chose {esc(st.session_state.mc_choice)}.'
+                    st.markdown(f'<div class="answer"><strong>{icon} {msg}</strong><p>Correct answer: <b>{esc(r.back)}</b><br>{esc(r.hint)}</p></div>',unsafe_allow_html=True)
+                    a1,a2=st.columns(2)
+                    if correct:
+                        if a1.button('🔵 Got it',use_container_width=True):advance('Correct',3)
+                        if a2.button('✅ Easy / automatic',use_container_width=True):advance('Correct',5)
+                    else:
+                        if a1.button('❌ Need to see this again',use_container_width=True):advance('Wrong',1)
+                        if a2.button('🟡 I understand now',use_container_width=True):advance('Wrong',2)
             else:
-                st.markdown(f'<div class="answer"><strong>✅ {esc(r.back)}</strong><p>Rate how automatic this felt. Your rating changes how often this card returns.</p></div>',unsafe_allow_html=True)
-                q1,q2,q3,q4=st.columns(4)
-                def grade(result,conf):
-                    record(r.id,result,conf);st.session_state.last_card=int(r.id);st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.session_seen+=1;st.rerun()
-                if q1.button('❌ I missed it\nAgain',use_container_width=True):grade('Wrong',1)
-                if q2.button('🟡 Still learning\nHard',use_container_width=True):grade('Wrong',2)
-                if q3.button('🔵 I got it\nMedium',use_container_width=True):grade('Correct',3)
-                if q4.button('✅ Easy\nMove on',use_container_width=True):grade('Correct',5)
+                x,y=st.columns(2)
+                if x.button('💡 Hide Hint' if st.session_state.show_hint else '💡 Show Hint',use_container_width=True):st.session_state.show_hint=not st.session_state.show_hint;st.rerun()
+                if not st.session_state.show_answer:
+                    if y.button('✨ Reveal Answer',type='primary',use_container_width=True):st.session_state.show_answer=True;st.rerun()
+                else:
+                    st.markdown(f'<div class="answer"><strong>✅ {esc(r.back)}</strong><p>Rate how automatic this felt. Your rating changes how often this card returns.</p></div>',unsafe_allow_html=True)
+                    q1,q2,q3,q4=st.columns(4)
+                    if q1.button('❌ I missed it\nAgain',use_container_width=True):advance('Wrong',1)
+                    if q2.button('🟡 Still learning\nHard',use_container_width=True):advance('Wrong',2)
+                    if q3.button('🔵 I got it\nMedium',use_container_width=True):advance('Correct',3)
+                    if q4.button('✅ Easy\nMove on',use_container_width=True):advance('Correct',5)
         with right:
             prog=min(100,100*st.session_state.session_seen/max(1,st.session_state.target));st.markdown(f'<div class="side"><div class="stitle">⏱ Current Session</div><div style="display:flex;justify-content:space-between"><div><div class="big">{elapsed(st.session_state.session_start)}</div><div class="small">Time</div></div><div><div class="big">{streak()} 🔥</div><div class="small">Streak</div></div></div></div>',unsafe_allow_html=True)
             qs=sc.sort_values('weakness',ascending=False).head(4);items=''
