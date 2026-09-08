@@ -348,6 +348,38 @@ def init():
             packed='|||'.join(choices) if choices else None
             c.execute('INSERT INTO cards(subject,topic,card_type,front,back,hint,created_at,choices) VALUES (?,?,?,?,?,?,?,?)',(subject,top,ctype,front,back,hint,now(),packed))
     c.commit()
+
+    # Rebalance §12.4: older builds accumulated too many near-duplicate
+    # cross-product computations. Keep four determinant drills and let the
+    # quiz/application cards cover the remaining cross-product use cases.
+    curated_cross_answers = {
+        '$\\langle1,-5,3\\rangle$',
+        '$\\langle-6,16,7\\rangle$',
+        '$\\langle10,-10,-15\\rangle$',
+        '$\\langle-1,10,-4\\rangle$',
+    }
+    cross_calc_rows = c.execute(
+        "SELECT id,back FROM cards WHERE subject='Calc 3 — Ch 12' "
+        "AND topic='12.4 Cross Product' AND card_type='Calculation'"
+    ).fetchall()
+    for row in cross_calc_rows:
+        if str(row['back']) not in curated_cross_answers:
+            c.execute('DELETE FROM cards WHERE id=?', (int(row['id']),))
+
+    # Remove a few duplicated recognition prompts while retaining the distinct
+    # skills: perpendicular vector, vector output, triangle area, parallel test,
+    # magnitude/angle, right-hand rule, and scalar-triple-product volume.
+    redundant_cross_prompts = [
+        'How do you find the area of a parallelogram spanned by a and b?',
+        'What is $\\mathbf a\\times\\mathbf a$?',
+    ]
+    for prompt in redundant_cross_prompts:
+        c.execute(
+            "DELETE FROM cards WHERE subject='Calc 3 — Ch 12' "
+            "AND topic='12.4 Cross Product' AND front=?",
+            (prompt,)
+        )
+    c.commit()
     c.close()
 
 def cards_df():
