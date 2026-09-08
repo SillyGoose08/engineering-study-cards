@@ -509,6 +509,9 @@ def option_markup(raw):
     """Keep prose readable and format only the mathematical parts."""
     import re
     s=str(raw).strip()
+    # Normalize stored LaTeX delimiters so they never leak literally into the UI.
+    if len(s) >= 2 and s.startswith('$') and s.endswith('$'):
+        s=s[1:-1].strip()
 
     # Explicitly prose-like answers should stay as prose.
     prose_like = bool(re.search(r'\s', s)) and not (
@@ -624,6 +627,38 @@ def objective_choices(r, exam, subject, topic):
             'Differentiate both line equations and set the derivatives equal'
         ]
         random.shuffle(opts); return opts
+    if 'point-normal form of a plane' in qlow:
+        opts=[
+            'a(x-x0)+b(y-y0)+c(z-z0)=0',
+            'r=r0+tv',
+            'ax+by+cz=d',
+            'n dot r=0'
+        ]
+        random.shuffle(opts); return opts
+    if 'vector form of a line' in qlow:
+        opts=[
+            'r=r0+tv',
+            'a(x-x0)+b(y-y0)+c(z-z0)=0',
+            'ax+by+cz=d',
+            'r(t)=<x0,y0,z0>'
+        ]
+        random.shuffle(opts); return opts
+    if 'two planes are parallel' in qlow:
+        opts=[
+            'Their normal vectors are parallel',
+            'Their normal vectors are perpendicular',
+            'Their direction vectors have zero cross product',
+            'They intersect at exactly one point'
+        ]
+        random.shuffle(opts); return opts
+    if 'normal vector' in qlow and 'plane' in qlow and 'two direction vectors' in qlow:
+        opts=[
+            'Cross product',
+            'Dot product',
+            'Vector addition',
+            'Scalar projection'
+        ]
+        random.shuffle(opts); return opts
     if 'polar coordinates' in qlow and 'x^2+y^2' in qlow.replace(' ',''):
         opts=['r^2','r','theta^2','x^2-y^2']
         random.shuffle(opts); return opts
@@ -649,12 +684,35 @@ def objective_choices(r, exam, subject, topic):
 
     # If we still do not have enough plausible same-topic distractors,
     # use generic distractors that match the response type rather than unrelated course material.
-    generic_by_kind={
-        'math':['0','1','-1','None of these'],
-        'short_prose':['A scalar','A vector','None of these','Cannot be determined'],
-        'long_prose':['None of these','Cannot be determined from the given information',
-                      'Use a different operation first','The statement is not generally true']
-    }
+    topic_text=(str(r.topic)+' '+str(r.subject)+' '+qlow).lower()
+    if 'lines and planes' in topic_text:
+        generic_by_kind={
+            'math':['r=r0+tv','ax+by+cz=d','a(x-x0)+b(y-y0)+c(z-z0)=0','n dot r=0'],
+            'short_prose':['Direction vector','Normal vector','Cross product','Dot product'],
+            'long_prose':['Their normal vectors are parallel','Their normal vectors are perpendicular',
+                          'Set corresponding coordinates equal and solve','Use a cross product to find a normal vector']
+        }
+    elif 'quadric' in topic_text or '3d coordinates' in topic_text:
+        generic_by_kind={
+            'math':['x^2+y^2+z^2=1','x^2/4+y^2/9+z^2=1','x^2+y^2=1','z=x^2+y^2'],
+            'short_prose':['Sphere','Ellipsoid','Cylinder','Cone'],
+            'long_prose':['A sphere centered at the origin','An ellipsoid with unequal semi-axes',
+                          'A cylinder extending along one axis','A paraboloid opening along one axis']
+        }
+    elif 'dot product' in topic_text or 'cross product' in topic_text or 'vectors' in topic_text:
+        generic_by_kind={
+            'math':['a dot b','a cross b','|a cross b|','a dot b=0'],
+            'short_prose':['Dot product','Cross product','A scalar','A vector'],
+            'long_prose':['The vectors are parallel','The vectors are perpendicular',
+                          'Take the dot product first','Take the cross product first']
+        }
+    else:
+        generic_by_kind={
+            'math':['None of these','Cannot be determined','Equivalent expression','Different formula'],
+            'short_prose':['None of these','Cannot be determined','Different method','Different quantity'],
+            'long_prose':['None of these','Cannot be determined from the given information',
+                          'Use a different method','The statement is not generally true']
+        }
 
     seen={ckey}
     distractors=[]
@@ -665,10 +723,12 @@ def objective_choices(r, exam, subject, topic):
         if len(distractors)>=3: break
 
     choices=[correct]+distractors[:3]
-    while len(choices)<4:
-        filler=f'Choice {len(choices)+1}'
-        if normalize_answer(filler) not in seen:
-            choices.append(filler)
+    emergency=['None of these','Cannot be determined','Use a different method','Equivalent form not shown']
+    for filler in emergency:
+        if len(choices)>=4: break
+        key=normalize_answer(filler)
+        if key not in seen:
+            choices.append(filler); seen.add(key)
     random.shuffle(choices)
     return choices
 
@@ -802,10 +862,7 @@ with t1:
                     letters=['A','B','C','D'][:len(choices)]
                     st.markdown('#### Choose the best answer')
                     for i,ch in enumerate(choices):
-                        st.markdown(
-                            f'<div style="padding:0.45rem 0 0.55rem 0; font-size:1.05rem;"><strong>{letters[i]}.</strong>&nbsp;&nbsp;{option_markup(ch)}</div>',
-                            unsafe_allow_html=True
-                        )
+                        st.markdown(f"**{letters[i]}.** &nbsp;&nbsp; {option_markup(ch)}")
                     selected_letter=st.radio('Select A, B, C, or D',letters,index=None,key=f"mcq_{int(r.id)}",horizontal=True,label_visibility='collapsed')
                     choice=choices[letters.index(selected_letter)] if selected_letter in letters else None
                     x,y=st.columns(2)

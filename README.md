@@ -34,3 +34,9 @@ Fixed the math-notation replacement crash caused by Python interpreting LaTeX ba
 - Generated multiple-choice distractors now come from curated concept families, so answers are plausible for the question.
 - Quadric-surface questions now compare related surfaces instead of unrelated vector/calculus terms.
 - Generated answer banks are frozen for the current card and no longer change when a radio choice reruns Streamlit.
+
+## Plausible-answer + LaTeX rendering fix
+- Multiple-choice math choices now render through Markdown/LaTeX, so `$...$` delimiters do not appear literally.
+- Point-normal, line-form, plane-parallel, and normal-vector questions now use realistic line/plane distractors.
+- Formula questions no longer fall back to obvious nonsense such as `0` and `1` unless that answer type genuinely fits.
+- Placeholder choices such as `Choice 3` were removed.
