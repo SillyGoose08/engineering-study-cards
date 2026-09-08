@@ -44,26 +44,6 @@ button[kind="primary"]{background:linear-gradient(90deg,#5368ff,#762cff)!importa
 .quiz-answer{background:linear-gradient(180deg,#0d1f34,#0a1727);border:1px solid var(--border);border-radius:14px;padding:16px;margin:10px 0}.correct-glow{border-color:#2bd47f;box-shadow:0 0 0 1px rgba(43,212,127,.15)}.wrong-glow{border-color:#ff5a6f;box-shadow:0 0 0 1px rgba(255,90,111,.15)}
 .fill-help{font-size:12px;color:var(--muted);margin:-4px 0 8px}.perfect{color:#ffd768!important}.objective-note{background:rgba(118,87,255,.08);border:1px solid rgba(118,87,255,.35);padding:10px 12px;border-radius:10px;color:#c9d2e4;font-size:12px}
 @media(max-width:900px){.session-banner,.mode-strip{grid-template-columns:repeat(2,1fr)}}
-
-/* Interactive practice builders */
-.interactive-panel{background:linear-gradient(180deg,#0d1f34,#081725);border:1px solid #294665;border-radius:16px;padding:18px 20px;margin:12px 0 14px}.interactive-title{font-size:18px;font-weight:850;color:#eef5ff;margin-bottom:5px}.interactive-sub{font-size:12px;color:var(--muted);margin-bottom:14px}.formula-builder{background:#f7f9fd;color:#10203c;border:1px solid #d5deec;border-radius:14px;padding:16px 18px;margin:10px 0 14px;text-align:center}.formula-builder .katex{font-size:1.35em}.vector-chip{display:inline-block;background:#e7e0ff;color:#563cd6;border-radius:10px;padding:7px 10px;margin:3px 5px 3px 0;font-weight:800}.interactive-feedback{border-radius:13px;padding:13px 15px;margin:12px 0}.interactive-feedback.ok{border:1px solid #2bd47f;background:rgba(43,212,127,.08)}.interactive-feedback.no{border:1px solid #ff5a6f;background:rgba(255,90,111,.08)}
-/* Responsive study layout: tablet + phone */
-@media(max-width:1100px){
- .block-container{padding-left:1rem!important;padding-right:1rem!important;max-width:100%!important}
- .hero{min-height:112px;padding:20px 22px}.hero h1{font-size:28px}
- .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.mcard{min-height:94px;padding:13px 14px}.mval{font-size:24px}
- .flash,.st-key-flashcard{padding:22px!important;min-height:240px}.question{font-size:23px!important}
-}
-@media(max-width:700px){
- .block-container{padding:.55rem .65rem 2rem!important}
- [data-testid="stSidebar"]{min-width:82vw!important;max-width:88vw!important}
- .hero{display:none}.brand h2{font-size:20px}.brain{font-size:28px}
- .metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-bottom:10px}.mcard{padding:10px 11px;min-height:82px}.mlabel{font-size:10px}.mval{font-size:20px;margin-top:5px}.mfoot{display:none}
- .session-banner{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:6px 0 10px}.session-stat{padding:9px 10px}.session-stat strong{font-size:17px}
- .flash,.st-key-flashcard{border-radius:15px!important;padding:16px!important;min-height:205px}.question{font-size:20px!important;line-height:1.28!important;margin-top:18px}.count{float:none;display:block;margin-top:8px}
- .stButton>button{min-height:48px;font-size:15px}.choice-grid{grid-template-columns:1fr}
- .stTabs [data-baseweb="tab"]{padding-left:.55rem!important;padding-right:.55rem!important;font-size:12px}
-}
 </style>''',unsafe_allow_html=True)
 
 def now(): return datetime.now(timezone.utc).isoformat()
@@ -76,7 +56,6 @@ def init():
     if 'choices' not in cols: c.execute('ALTER TABLE cards ADD COLUMN choices TEXT');c.commit()
     acols=[r[1] for r in c.execute('PRAGMA table_info(attempts)').fetchall()]
     if 'answer_mode' not in acols: c.execute('ALTER TABLE attempts ADD COLUMN answer_mode TEXT');c.commit()
-    if 'review_stage' not in acols: c.execute('ALTER TABLE attempts ADD COLUMN review_stage INTEGER DEFAULT 0');c.commit()
     c.execute("INSERT OR IGNORE INTO records(key,value) VALUES ('best_quiz_streak',0)");c.commit()
     if c.execute('SELECT COUNT(*) FROM cards').fetchone()[0]==0:
         cards=[
@@ -95,20 +74,133 @@ def init():
     for top,front,back,choices,hint in mcqs:
         if not c.execute('SELECT 1 FROM cards WHERE front=?',(front,)).fetchone():
             c.execute('INSERT INTO cards(subject,topic,card_type,front,back,hint,created_at,choices) VALUES (?,?,?,?,?,?,?,?)',('Math Foundations',top,'Multiple Choice',front,back,hint,now(),'|||'.join(choices)))
-    # Interactive practice base cards are inserted even for existing databases.
-    # Their parameters are randomized each time they are served, so one base card
-    # represents many practice variations while still feeding the same concept tracker.
-    interactive_cards=[
-        ('Calc 3','Dot product','Interactive','INTERACTIVE_DOT','Dot product','Compute the scalar by multiplying matching components and adding.'),
-        ('Calc 3','Cross product','Interactive','INTERACTIVE_CROSS','Cross product','Use the determinant / component formula and watch the j-sign.'),
-        ('Math Foundations','Product rule','Interactive','INTERACTIVE_PRODUCT_RULE','Product rule',"Build (fg)' = f'g + fg'."),
-        ('Math Foundations','Quotient rule','Interactive','INTERACTIVE_QUOTIENT_RULE','Quotient rule',"For f/g: low·d(high) − high·d(low), over low²."),
-        ('Math Foundations','Power rule','Interactive','INTERACTIVE_POWER_RULE','Power rule','Bring the exponent down, then subtract 1 from the exponent.'),
-        ('Math Foundations','Chain rule','Interactive','INTERACTIVE_CHAIN_RULE','Chain rule','Differentiate the outer function, keep the inner, then multiply by the inner derivative.'),
+    # Comprehensive chapter 12–17 curriculum. Seed on every launch with
+    # duplicate protection so existing users receive new material without losing progress.
+    curriculum_cards=[('Calc 3 — Ch 12', '12.1 3D Coordinates', 'Recognition', 'In 3D, what equation represents a sphere centered at (a,b,c) with radius r?', '(x-a)^2+(y-b)^2+(z-c)^2=r^2', 'Sphere = distance from center held constant.', None), ('Calc 3 — Ch 12', '12.1 3D Coordinates', 'Multiple Choice', 'Which equation describes a sphere centered at the origin with radius 4?', 'x^2+y^2+z^2=16', 'Radius squared appears on the right.', ['x^2+y^2+z^2=4', 'x^2+y^2+z^2=16', 'x+y+z=4', 'x^2+y^2=16']), ('Calc 3 — Ch 12', '12.2 Vectors', 'Recognition', 'Given points A and B, how do you form vector AB?', 'B-A', 'Terminal point minus initial point.', None), ('Calc 3 — Ch 12', '12.2 Vectors', 'Multiple Choice', 'What operation gives the magnitude of v=<a,b,c>?', 'sqrt(a^2+b^2+c^2)', 'Use the 3D Pythagorean formula.', ['a+b+c', 'a^2+b^2+c^2', 'sqrt(a^2+b^2+c^2)', '|a+b+c|']), ('Calc 3 — Ch 12', '12.2 Vectors', 'Recognition', 'How do you create a unit vector in the direction of v?', 'v/|v|', 'Divide the vector by its magnitude.', None), ('Calc 3 — Ch 12', '12.3 Dot Product', 'Recognition', 'A problem asks for the angle between two vectors. What operation should you think of first?', 'Dot product', 'Angle → dot product → cosine formula.', None), ('Calc 3 — Ch 12', '12.3 Dot Product', 'Recognition', 'How do you test whether two nonzero vectors are perpendicular?', 'Dot product equals 0', 'Orthogonal vectors have zero dot product.', None), ('Calc 3 — Ch 12', '12.3 Dot Product', 'Multiple Choice', 'What does a dot product produce?', 'A scalar', 'Dot → number.', ['A vector', 'A scalar', 'A plane', 'A matrix']), ('Calc 3 — Ch 12', '12.3 Dot Product', 'Recognition', 'What formula connects the dot product to the angle theta?', 'a dot b=|a||b|cos(theta)', 'This is the main angle formula for vectors.', None), ('Calc 3 — Ch 12', '12.3 Dot Product', 'Recognition', 'A problem asks for the projection of a onto b. Which operation is central?', 'Dot product', 'Projection measures the component along another vector.', None), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Recognition', 'A problem asks for a vector perpendicular to two vectors. What operation should you use?', 'Cross product', 'Perpendicular to TWO vectors → cross product.', None), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Multiple Choice', 'What does a cross product produce?', 'A vector', 'Cross → new perpendicular vector.', ['A scalar', 'A vector', 'An angle only', 'A derivative']), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Recognition', 'How do you find the area of a parallelogram spanned by a and b?', '|a cross b|', 'Magnitude of the cross product gives parallelogram area.', None), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Recognition', 'How do you find the area of a triangle formed by vectors a and b?', '1/2|a cross b|', 'Triangle is half the corresponding parallelogram.', None), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Recognition', 'What is the scalar triple product used to find geometrically?', 'Volume', '|a·(b×c)| gives parallelepiped volume.', None), ('Calc 3 — Ch 12', '12.4 Cross Product', 'Multiple Choice', 'If a cross b = 0 for nonzero vectors, what does that tell you?', 'They are parallel', 'Zero cross magnitude means sin(theta)=0.', ['They are perpendicular', 'They are parallel', 'They have equal magnitude', 'Their dot product is zero']), ('Calc 3 — Ch 12', '12.5 Lines and Planes', 'Recognition', 'You are given two points and asked for a line. What should you find first?', 'Direction vector by subtracting the points', 'Two points → subtract → direction vector.', None), ('Calc 3 — Ch 12', '12.5 Lines and Planes', 'Recognition', 'What is the vector form of a line through r0 with direction v?', 'r=r0+tv', 'Point + parameter times direction.', None), ('Calc 3 — Ch 12', '12.5 Lines and Planes', 'Recognition', 'To find whether two paths intersect, may the two lines use different parameters?', 'Yes', 'Path intersection allows separate parameters such as s and t.', None), ('Calc 3 — Ch 12', '12.5 Lines and Planes', 'Recognition', 'To check whether two particles collide, what must be the same?', 'Time parameter', 'Collision means same position at the same time.', None), ('Calc 3 — Ch 12', '12.5 Lines and Planes', 'Recognition', 'A plane problem gives two direction vectors in the plane. How do you get a normal vector?', 'Cross product', 'Cross the in-plane directions.', None), ('Calc 3 — Ch 12', '12.5 Lines and Planes', 'Recognition', 'What is the point-normal form of a plane?', 'a(x-x0)+b(y-y0)+c(z-z0)=0', '<a,b,c> is the normal vector.', None), ('Calc 3 — Ch 12', '12.5 Lines and Planes', 'Recognition', 'How do you test whether two planes are parallel?', 'Their normal vectors are parallel', 'Plane orientation is controlled by its normal.', None), ('Calc 3 — Ch 12', '12.6 Quadric Surfaces', 'Recognition', 'Equal positive coefficients on x^2, y^2, z^2 describe what basic closed surface?', 'Sphere', 'Equal squared scaling gives equal radii.', None), ('Calc 3 — Ch 12', '12.6 Quadric Surfaces', 'Recognition', 'Positive but unequal coefficients on x^2, y^2, z^2 equal to 1 usually describe what?', 'Ellipsoid', 'A stretched/squished sphere.', None), ('Calc 3 — Ch 12', '12.6 Quadric Surfaces', 'Recognition', 'If one variable is missing from a surface equation, what geometric behavior should you expect?', 'The curve extends parallel to the missing variable axis', 'Missing variable → extrusion in that direction.', None), ('Calc 3 — Ch 13', '13.1 Vector Functions', 'Recognition', 'What is a vector-valued function r(t)?', 'A function whose output is a vector', 'Typically r(t)=<x(t),y(t),z(t)>.', None), ('Calc 3 — Ch 13', '13.1 Vector Functions', 'Recognition', 'How do you evaluate a limit of a vector function?', 'Take the limit of each component', 'Vector limits are componentwise.', None), ('Calc 3 — Ch 13', '13.1 Vector Functions', 'Recognition', 'How do you determine where two space curves intersect?', 'Set their component equations equal using separate parameters', 'Same point does not require same parameter value.', None), ('Calc 3 — Ch 13', '13.2 Derivatives and Integrals', 'Recognition', 'How do you differentiate a vector-valued function?', 'Differentiate each component', 'Treat components independently.', None), ('Calc 3 — Ch 13', '13.2 Derivatives and Integrals', 'Recognition', 'How do you integrate a vector-valued function?', 'Integrate each component separately', 'Each component is an ordinary integral.', None), ('Calc 3 — Ch 13', '13.2 Derivatives and Integrals', 'Recognition', 'Given r prime(t) and r(t0), what is the workflow?', 'Integrate components, add constants, use the initial condition', 'Initial position determines integration constants.', None), ('Calc 3 — Ch 13', '13.3 Arc Length and Curvature', 'Recognition', 'What quantity do you integrate to find arc length of r(t)?', '|r prime(t)|', 'Arc length is integral of speed.', None), ('Calc 3 — Ch 13', '13.3 Arc Length and Curvature', 'Recognition', 'How is the unit tangent vector T defined?', 'r prime(t)/|r prime(t)|', 'Normalize the velocity/tangent vector.', None), ('Calc 3 — Ch 13', '13.3 Arc Length and Curvature', 'Recognition', 'What does curvature measure?', 'How rapidly a curve changes direction', 'Large curvature means tighter bending.', None), ('Calc 3 — Ch 13', '13.3 Arc Length and Curvature', 'Recognition', 'How is the principal unit normal N obtained from T?', 'T prime/|T prime|', 'Differentiate T and normalize.', None), ('Calc 3 — Ch 13', '13.4 Motion in Space', 'Recognition', 'For position r(t), what is velocity?', 'r prime(t)', 'Velocity is the derivative of position.', None), ('Calc 3 — Ch 13', '13.4 Motion in Space', 'Recognition', 'For position r(t), what is acceleration?', 'r double prime(t)', 'Acceleration is the derivative of velocity.', None), ('Calc 3 — Ch 13', '13.4 Motion in Space', 'Recognition', 'What is speed for a particle with velocity v(t)?', '|v(t)|', 'Speed is the magnitude of velocity.', None), ('Calc 3 — Ch 13', '13.4 Motion in Space', 'Recognition', 'In projectile motion without air resistance, which acceleration component is constant?', 'Vertical acceleration', 'Gravity acts vertically downward.', None), ('Calc 3 — Ch 14', '14.1 Multivariable Functions', 'Recognition', 'What does z=f(x,y) represent geometrically?', 'A surface in 3D', 'Two inputs and one output create a surface.', None), ('Calc 3 — Ch 14', '14.1 Multivariable Functions', 'Recognition', 'What is a level curve of f(x,y)?', 'f(x,y)=k', 'Hold the output constant.', None), ('Calc 3 — Ch 14', '14.2 Limits and Continuity', 'Recognition', 'To show a multivariable limit does not exist, what strategy is often useful?', 'Approach along two paths and get different limits', 'Different path values disprove a unique limit.', None), ('Calc 3 — Ch 14', '14.2 Limits and Continuity', 'Recognition', 'For continuity at a point, what must equal the function value?', 'The limit', 'Continuity requires limit = function value.', None), ('Calc 3 — Ch 14', '14.3 Partial Derivatives', 'Recognition', 'When taking partial derivative fx, what do you do with y?', 'Treat y as a constant', 'Differentiate only with respect to x.', None), ('Calc 3 — Ch 14', '14.3 Partial Derivatives', 'Recognition', 'When taking partial derivative fy, what do you do with x?', 'Treat x as a constant', 'Differentiate only with respect to y.', None), ('Calc 3 — Ch 14', '14.3 Partial Derivatives', 'Recognition', 'What does fxy mean?', 'Differentiate first with respect to x, then y', 'Read derivative subscripts in the order differentiation is performed in this notation convention.', None), ('Calc 3 — Ch 14', '14.4 Tangent Planes', 'Recognition', 'What data do you need for the tangent plane to z=f(x,y) at (a,b)?', 'f(a,b), fx(a,b), and fy(a,b)', 'These determine the point and two slopes.', None), ('Calc 3 — Ch 14', '14.4 Tangent Planes', 'Recognition', 'What is linearization used for?', 'Approximate a function near a point', 'The tangent plane is a local approximation.', None), ('Calc 3 — Ch 14', '14.5 Chain Rule', 'Recognition', 'If z=f(x,y) and x,y both depend on t, what rule should you recognize for dz/dt?', 'Multivariable chain rule', 'Follow every dependency path from t to z.', None), ('Calc 3 — Ch 14', '14.5 Chain Rule', 'Recognition', 'Implicit differentiation with several variables often relies on what derivative idea?', 'Chain rule', 'Dependent variables generate derivative factors.', None), ('Calc 3 — Ch 14', '14.6 Gradient and Directional Derivatives', 'Recognition', 'What is the gradient of f(x,y)?', '<fx,fy>', 'The gradient collects first partial derivatives.', None), ('Calc 3 — Ch 14', '14.6 Gradient and Directional Derivatives', 'Recognition', 'In what direction does the gradient point?', 'Direction of maximum increase', 'Gradient points steepest uphill.', None), ('Calc 3 — Ch 14', '14.6 Gradient and Directional Derivatives', 'Recognition', 'How do you compute the directional derivative in unit direction u?', 'Gradient dot u', 'Directional derivative is a dot product.', None), ('Calc 3 — Ch 14', '14.6 Gradient and Directional Derivatives', 'Recognition', 'The gradient is perpendicular to what geometric objects?', 'Level curves and level surfaces', 'Gradient is normal to constant-value sets.', None), ('Calc 3 — Ch 14', '14.7 Maximum and Minimum', 'Recognition', 'For an interior critical point of f(x,y), what equations do you solve first?', 'fx=0 and fy=0', 'Critical points occur where the gradient vanishes or derivatives fail.', None), ('Calc 3 — Ch 14', '14.7 Maximum and Minimum', 'Recognition', 'What test classifies many two-variable critical points?', 'Second derivative test', 'Use D=fxx*fyy-(fxy)^2.', None), ('Calc 3 — Ch 14', '14.8 Lagrange Multipliers', 'Recognition', 'Optimization subject to a constraint g(x,y)=c should trigger what method?', 'Lagrange multipliers', 'Constraint + extrema → ∇f=lambda∇g.', None), ('Calc 3 — Ch 14', '14.8 Lagrange Multipliers', 'Recognition', 'What vector equation is central to Lagrange multipliers?', 'grad f=lambda grad g', 'At constrained extrema the gradients are parallel.', None), ('Calc 3 — Ch 15', '15.1 Double Integrals', 'Recognition', 'What does a double integral of f(x,y) over a region accumulate?', 'A quantity over area', 'Think many small f dA contributions.', None), ('Calc 3 — Ch 15', '15.1 Double Integrals', 'Recognition', 'For a rectangular region, how are double integrals commonly evaluated?', 'As iterated integrals', 'Integrate one variable, then the other.', None), ('Calc 3 — Ch 15', '15.2 General Regions', 'Recognition', 'When changing the order of integration, what should you do first?', 'Sketch the region', 'The geometry determines the new bounds.', None), ('Calc 3 — Ch 15', '15.2 General Regions', 'Recognition', 'For a Type I region, which variable typically has function bounds?', 'y', 'Type I: a<=x<=b and g1(x)<=y<=g2(x).', None), ('Calc 3 — Ch 15', '15.3 Polar Coordinates', 'Recognition', 'A circular region or x^2+y^2 expression should make you consider what coordinates?', 'Polar coordinates', 'Circles simplify with r and theta.', None), ('Calc 3 — Ch 15', '15.3 Polar Coordinates', 'Recognition', 'What is dA in polar coordinates?', 'r dr dtheta', 'Do not forget the Jacobian factor r.', None), ('Calc 3 — Ch 15', '15.3 Polar Coordinates', 'Recognition', 'What does x^2+y^2 become in polar coordinates?', 'r^2', 'Core polar identity.', None), ('Calc 3 — Ch 15', '15.4 Applications', 'Recognition', 'How do you find mass of a lamina with density rho(x,y)?', 'Double integral of rho dA', 'Density integrated over area gives mass.', None), ('Calc 3 — Ch 15', '15.4 Applications', 'Recognition', 'What do moments of mass help you compute?', 'Center of mass', 'Moments determine balance location.', None), ('Calc 3 — Ch 15', '15.5 Surface Area', 'Recognition', 'Surface area of z=f(x,y) uses what factor under the double integral?', 'sqrt(1+fx^2+fy^2)', 'This accounts for surface tilt.', None), ('Calc 3 — Ch 15', '15.6 Triple Integrals', 'Recognition', 'What does a triple integral integrate over?', 'Volume', 'Use dV over a 3D region.', None), ('Calc 3 — Ch 15', '15.7 Cylindrical Coordinates', 'Recognition', 'A 3D region with circular symmetry around the z-axis should suggest what coordinates?', 'Cylindrical coordinates', 'Polar in xy plus z.', None), ('Calc 3 — Ch 15', '15.7 Cylindrical Coordinates', 'Recognition', 'What is dV in cylindrical coordinates?', 'r dz dr dtheta', 'Cylindrical Jacobian contributes r.', None), ('Calc 3 — Ch 15', '15.8 Spherical Coordinates', 'Recognition', 'A sphere-centered region should suggest what coordinate system?', 'Spherical coordinates', 'Spheres simplify with rho, phi, theta.', None), ('Calc 3 — Ch 15', '15.8 Spherical Coordinates', 'Recognition', 'What is dV in spherical coordinates?', 'rho^2 sin(phi) d rho d phi d theta', 'Remember the spherical Jacobian.', None), ('Calc 3 — Ch 15', '15.9 Change of Variables', 'Recognition', 'What factor appears when changing variables in a multiple integral?', 'Absolute value of the Jacobian determinant', 'The Jacobian rescales area or volume.', None), ('Calc 3 — Ch 16', '16.1 Vector Fields', 'Recognition', 'What is a vector field?', 'A function assigning a vector to each point', 'Examples include velocity and force fields.', None), ('Calc 3 — Ch 16', '16.1 Vector Fields', 'Recognition', 'For a scalar function f, what vector field is naturally associated with it?', 'Gradient field', '∇f is a vector field.', None), ('Calc 3 — Ch 16', '16.2 Line Integrals', 'Recognition', 'What does a line integral integrate over?', 'A curve', 'The domain of accumulation is a path.', None), ('Calc 3 — Ch 16', '16.2 Line Integrals', 'Recognition', 'Work done by a force field F along a curve C uses which integral?', 'Integral F dot dr', 'Work is a vector line integral.', None), ('Calc 3 — Ch 16', '16.3 Fundamental Theorem', 'Recognition', 'If F is conservative, how can a line integral from A to B be evaluated quickly?', 'Potential at B minus potential at A', 'Use F=grad f and compute f(B)-f(A).', None), ('Calc 3 — Ch 16', '16.3 Fundamental Theorem', 'Recognition', 'What does path independence suggest about a vector field?', 'It is conservative', 'Under suitable domain conditions.', None), ('Calc 3 — Ch 16', '16.3 Fundamental Theorem', 'Recognition', 'For F=<P,Q> on a suitable simply connected domain, what test suggests F is conservative?', 'Py=Qx', 'Matching cross partials is the 2D test.', None), ('Calc 3 — Ch 16', '16.4 Greens Theorem', 'Recognition', 'A closed planar curve and a line integral around its boundary should make you consider what theorem?', 'Greens theorem', 'Green converts boundary line integrals to double integrals.', None), ('Calc 3 — Ch 16', '16.5 Curl and Divergence', 'Recognition', 'What does divergence measure conceptually?', 'Net outward source or sink strength', 'Positive divergence behaves like a source.', None), ('Calc 3 — Ch 16', '16.5 Curl and Divergence', 'Recognition', 'What does curl measure conceptually?', 'Local rotation', 'Curl measures rotational tendency.', None), ('Calc 3 — Ch 16', '16.6 Parametric Surfaces', 'Recognition', 'How is a parametric surface commonly represented?', 'r(u,v)', 'Two parameters sweep out a surface.', None), ('Calc 3 — Ch 16', '16.6 Parametric Surfaces', 'Recognition', 'How do you get a normal direction to a parametric surface r(u,v)?', 'r_u cross r_v', 'Cross the tangent vectors.', None), ('Calc 3 — Ch 16', '16.7 Surface Integrals', 'Recognition', 'Flux through a surface fundamentally uses which vector operation?', 'Dot product', 'Flux measures field component through the normal.', None), ('Calc 3 — Ch 16', '16.8 Stokes Theorem', 'Recognition', 'A line integral around a 3D boundary curve can often be converted to a surface integral using what theorem?', 'Stokes theorem', 'Stokes relates circulation to curl through a surface.', None), ('Calc 3 — Ch 16', '16.9 Divergence Theorem', 'Recognition', 'Flux through a closed surface can often be converted to a triple integral using what theorem?', 'Divergence theorem', 'Closed-surface flux ↔ volume integral of divergence.', None), ('Calc 3 — Ch 16', '16.9 Divergence Theorem', 'Recognition', 'What is the key visual clue for the Divergence Theorem?', 'Closed surface', 'The surface must enclose a volume.', None), ('Differential Equations — Ch 17', '17.1 Second-Order Linear', 'Recognition', 'What makes an ODE second order?', 'The highest derivative is second derivative', 'Order is determined by the highest derivative present.', None), ('Differential Equations — Ch 17', '17.1 Second-Order Linear', 'Recognition', 'For ay double prime+by prime+cy=0 with constant coefficients, what should you form?', 'Characteristic equation ar^2+br+c=0', 'Replace derivatives by powers of r.', None), ('Differential Equations — Ch 17', '17.1 Second-Order Linear', 'Recognition', 'Two distinct real characteristic roots r1,r2 give what solution form?', 'c1 e^(r1 t)+c2 e^(r2 t)', 'Distinct real roots produce two exponentials.', None), ('Differential Equations — Ch 17', '17.1 Second-Order Linear', 'Recognition', 'A repeated characteristic root r gives what solution form?', '(c1+c2 t)e^(rt)', 'The second independent solution gains a factor t.', None), ('Differential Equations — Ch 17', '17.1 Second-Order Linear', 'Recognition', 'Complex roots alpha plus/minus beta i give what real solution form?', 'e^(alpha t)(c1 cos(beta t)+c2 sin(beta t))', 'Complex roots become sine/cosine with exponential envelope.', None), ('Differential Equations — Ch 17', '17.1 Second-Order Linear', 'Recognition', 'How many initial conditions are normally needed for a second-order IVP?', '2', 'A second-order equation has two arbitrary constants.', None), ('Differential Equations — Ch 17', '17.2 Nonhomogeneous', 'Recognition', 'For L[y]=g(t), how is the general solution organized?', 'y=yc+yp', 'Complementary solution plus particular solution.', None), ('Differential Equations — Ch 17', '17.2 Nonhomogeneous', 'Recognition', 'Polynomial, exponential, sine, or cosine forcing with constant coefficients should suggest what method?', 'Undetermined coefficients', 'Use when the forcing has a suitable standard form.', None), ('Differential Equations — Ch 17', '17.2 Nonhomogeneous', 'Recognition', 'When your trial particular solution duplicates part of yc, what do you do?', 'Multiply the trial by t enough times', 'Resonance requires a modified trial.', None), ('Differential Equations — Ch 17', '17.2 Nonhomogeneous', 'Recognition', 'A nonhomogeneous linear equation with awkward forcing may suggest what general method?', 'Variation of parameters', 'More general than undetermined coefficients.', None), ('Differential Equations — Ch 17', '17.3 Applications', 'Recognition', 'What physical system is modeled by m x double prime+c x prime+kx=F(t)?', 'Mass-spring-damper system', 'm=mass, c=damping, k=spring stiffness.', None), ('Differential Equations — Ch 17', '17.3 Applications', 'Recognition', 'In m x double prime+c x prime+kx=0, what does c represent?', 'Damping coefficient', 'It controls velocity-proportional resistance.', None), ('Differential Equations — Ch 17', '17.3 Applications', 'Recognition', 'What does F(t) represent in a forced vibration model?', 'External forcing', 'It drives the system from outside.', None), ('Differential Equations — Ch 17', '17.3 Applications', 'Recognition', 'No damping means which coefficient is zero?', 'c=0', 'Remove the x prime damping term.', None), ('Differential Equations — Ch 17', '17.3 Applications', 'Recognition', 'What phenomenon occurs when forcing frequency aligns with natural frequency in an undamped system?', 'Resonance', 'The response amplitude can grow strongly.', None), ('Differential Equations — Ch 17', '17.4 Series Solutions', 'Recognition', 'When ordinary closed-form methods fail near a point, what method may be used for a linear ODE?', 'Power series solution', 'Assume y=sum a_n x^n and determine coefficients.', None), ('Method Recognition — Calculus', 'Recognition Drills', 'Recognition', 'You see an integral containing a function and its derivative, such as ∫x cos(x^2) dx. What method should you try?', 'u-substitution', 'Look for an inside function and its derivative.', None), ('Method Recognition — Calculus', 'Recognition Drills', 'Recognition', 'You see a product like ∫x e^x dx. What integration method should you consider?', 'Integration by parts', 'Product of unlike function types often signals IBP.', None), ('Method Recognition — Calculus', 'Recognition Drills', 'Recognition', 'You see ∫1/(1+x^2) dx. What antiderivative pattern should you recognize?', 'arctan(x)+C', 'Inverse tangent derivative pattern.', None), ('Method Recognition — Calculus', 'Recognition Drills', 'Recognition', 'You need a number measuring alignment or angle between vectors. Dot or cross?', 'Dot product', 'Dot produces a scalar and connects to cosine.', None), ('Method Recognition — Calculus', 'Recognition Drills', 'Recognition', 'You need a new vector perpendicular to two given vectors. Dot or cross?', 'Cross product', 'Cross produces a perpendicular vector.', None), ('Method Recognition — Calculus', 'Recognition Drills', 'Recognition', 'You see a circular double-integral region. What coordinate change should you consider?', 'Polar coordinates', 'Circular xy geometry → polar.', None), ('Method Recognition — Calculus', 'Recognition Drills', 'Recognition', 'You see a spherical triple-integral region. What coordinate change should you consider?', 'Spherical coordinates', 'Spherical geometry → spherical coordinates.', None), ('Method Recognition — Calculus', 'Recognition Drills', 'Recognition', 'You need constrained extrema of f subject to g=c. What method?', 'Lagrange multipliers', 'Constraint optimization → Lagrange.', None), ('Method Recognition — Calculus', 'Recognition Drills', 'Recognition', 'You need the steepest-increase direction of a scalar field. What object?', 'Gradient', 'Gradient points in maximum-increase direction.', None), ('Method Recognition — Calculus', 'Recognition Drills', 'Recognition', 'You have a conservative field and endpoints only. What shortcut?', 'Fundamental theorem for line integrals', 'Use the potential difference.', None)]
+
+    # Complete Calc I / II curriculum (Chapters 1-11).
+    # Each chapter deliberately mixes recognition, setup/method, and calculation prompts.
+    early_calc_cards = [
+        # CHAPTER 1 — FUNCTIONS & MODELS
+        ('Calc 1 — Ch 1','1.1-1.3 Functions','Recognition','What does f(a) mean?','The output of f when the input is a','Input a into the function.',None),
+        ('Calc 1 — Ch 1','1.1-1.3 Functions','Recognition','How do you find the domain of a function?','Find all input values for which the expression is defined','Watch for zero denominators, even roots of negatives, and invalid logarithm inputs.',None),
+        ('Calc 1 — Ch 1','1.1-1.3 Functions','Multiple Choice','For an even function, which identity is true?','f(-x)=f(x)','Even functions are symmetric about the y-axis.',['f(-x)=f(x)','f(-x)=-f(x)','f(x)=0','f(x+1)=f(x)']),
+        ('Calc 1 — Ch 1','1.4 Transformations','Recognition','What does f(x-h)+k do to the graph of f(x)?','Shift right h and up k','Inside changes horizontal position; outside changes vertical position.',None),
+        ('Calc 1 — Ch 1','1.5 Exponential Functions','Recognition','What key property identifies an exponential function?','The variable is in the exponent','Example: a^x.',None),
+        ('Calc 1 — Ch 1','1.6 Inverse Functions','Recognition','How can you test graphically whether a function has an inverse?','Horizontal line test','One-to-one functions pass the horizontal line test.',None),
+        ('Calc 1 — Ch 1','1.6 Inverse Functions','Recognition','What relationship connects a function and its inverse?','f(f^-1(x))=x','The inverse undoes the original function.',None),
+        ('Calc 1 — Ch 1','1.6 Logarithms','Multiple Choice','Which identity is correct?','ln(ab)=ln(a)+ln(b)','Products become sums under logarithms.',['ln(ab)=ln(a)+ln(b)','ln(a+b)=ln(a)+ln(b)','ln(a/b)=ln(a)ln(b)','ln(a^b)=b+ln(a)']),
+
+        # CHAPTER 2 — LIMITS & DERIVATIVES
+        ('Calc 1 — Ch 2','2.1-2.3 Limits','Recognition','What is a limit asking you to determine?','The value a function approaches as x approaches a point','A limit concerns nearby behavior, not necessarily the function value.',None),
+        ('Calc 1 — Ch 2','2.1-2.3 Limits','Recognition','Direct substitution gives 0/0 in a limit. What does that mean?','The form is indeterminate and needs more work','Try algebraic simplification, factoring, rationalizing, or another limit technique.',None),
+        ('Calc 1 — Ch 2','2.1-2.3 Limits','Recognition','When a rational limit gives 0/0 and the expression factors, what should you try first?','Factor and cancel the common factor','Simplify before evaluating again.',None),
+        ('Calc 1 — Ch 2','2.4 Continuity','Recognition','What three conditions are required for continuity at x=a?','f(a) exists, lim f(x) exists, and lim f(x)=f(a)','All three must hold.',None),
+        ('Calc 1 — Ch 2','2.5 Limits at Infinity','Recognition','For a rational function with equal numerator and denominator degrees, what determines the horizontal asymptote?','Ratio of leading coefficients','Highest-degree terms dominate.',None),
+        ('Calc 1 — Ch 2','2.6 Derivatives','Recognition','Conceptually, what does f prime(a) represent?','Instantaneous rate of change or tangent-line slope','Derivative = local rate/slope.',None),
+        ('Calc 1 — Ch 2','2.6 Derivatives','Recognition','What limit defines f prime(a)?','lim h->0 [f(a+h)-f(a)]/h','This is the difference quotient.',None),
+        ('Calc 1 — Ch 2','2.7 Derivative as Function','Multiple Choice','If position is s(t), what is velocity?','s prime(t)','Velocity is the derivative of position.',['s(t)^2','s prime(t)','integral of s(t)','1/s(t)']),
+
+        # CHAPTER 3 — DIFFERENTIATION RULES
+        ('Calc 1 — Ch 3','3.1 Basic Rules','Recognition','What is d/dx(x^n)?','n*x^(n-1)','Power rule.',None),
+        ('Calc 1 — Ch 3','3.1 Basic Rules','Multiple Choice','What is d/dx(e^x)?','e^x','The natural exponential is its own derivative.',['x e^(x-1)','e^x','ln(x)','1/e^x']),
+        ('Calc 1 — Ch 3','3.2 Product and Quotient Rules','Recognition','You need the derivative of two functions multiplied together. What rule?','Product rule','(fg) prime = f prime g + f g prime.',None),
+        ('Calc 1 — Ch 3','3.2 Product and Quotient Rules','Recognition','You need the derivative of one function divided by another. What rule?','Quotient rule','Low d-high minus high d-low over low squared.',None),
+        ('Calc 1 — Ch 3','3.3 Trig Derivatives','Recognition','What is d/dx(sin x)?','cos x','Core trig derivative.',None),
+        ('Calc 1 — Ch 3','3.3 Trig Derivatives','Recognition','What is d/dx(cos x)?','-sin x','Core trig derivative.',None),
+        ('Calc 1 — Ch 3','3.4 Chain Rule','Recognition','You see a function inside another function, such as sin(x^2). What rule should you think of?','Chain rule','Differentiate outside, keep inside, multiply by derivative of inside.',None),
+        ('Calc 1 — Ch 3','3.5 Implicit Differentiation','Recognition','x and y are mixed in an equation and y is not isolated. What method should you consider?','Implicit differentiation','Differentiate both sides with respect to x and remember y terms produce y prime.',None),
+        ('Calc 1 — Ch 3','3.6 Logarithmic Derivatives','Recognition','What is d/dx(ln x)?','1/x','Natural-log derivative.',None),
+        ('Calc 1 — Ch 3','3.9 Related Rates','Recognition','Several quantities change with time and you are asked for one rate from another. What problem type is this?','Related rates','Write a relationship, differentiate with respect to time, then substitute known values.',None),
+
+        # CHAPTER 4 — APPLICATIONS OF DIFFERENTIATION
+        ('Calc 1 — Ch 4','4.1 Extrema','Recognition','At an interior local maximum or minimum where f is differentiable, what is usually true?','f prime(x)=0','Such points are critical points.',None),
+        ('Calc 1 — Ch 4','4.1 Extrema','Recognition','How do you find critical numbers?','Find where f prime(x)=0 or f prime(x) does not exist','Restrict to values in the domain of f.',None),
+        ('Calc 1 — Ch 4','4.3 Derivative Tests','Recognition','If f prime changes from positive to negative at c, what occurs at c?','Local maximum','Increasing then decreasing.',None),
+        ('Calc 1 — Ch 4','4.3 Derivative Tests','Recognition','If f prime changes from negative to positive at c, what occurs at c?','Local minimum','Decreasing then increasing.',None),
+        ('Calc 1 — Ch 4','4.4 Concavity','Recognition','What does f double prime(x)>0 tell you?','The graph is concave up','Positive second derivative means slopes are increasing.',None),
+        ('Calc 1 — Ch 4','4.4 Concavity','Recognition','What is an inflection point?','A point where concavity changes','A zero of f double prime alone is not enough; concavity must change.',None),
+        ('Calc 1 — Ch 4','4.7 Optimization','Recognition','A problem asks for the largest or smallest possible physical quantity. What process should you think of?','Optimization','Build an objective function, reduce variables using constraints, find extrema.',None),
+        ('Calc 1 — Ch 4','4.9 Antiderivatives','Recognition','What is an antiderivative of f?','A function F such that F prime=f','Differentiation and antidifferentiation reverse each other.',None),
+
+        # CHAPTER 5 — INTEGRALS
+        ('Calc 1 — Ch 5','5.1 Area and Distance','Recognition','What does a definite integral represent geometrically when f is nonnegative?','Area under the curve','More generally it gives signed/net area.',None),
+        ('Calc 1 — Ch 5','5.2 Definite Integral','Recognition','What does a Riemann sum approximate?','A definite integral','It adds many function-value times width contributions.',None),
+        ('Calc 1 — Ch 5','5.3 Fundamental Theorem','Recognition','What does the Fundamental Theorem of Calculus connect?','Derivatives and definite integrals','It links accumulation and rates of change.',None),
+        ('Calc 1 — Ch 5','5.3 Fundamental Theorem','Recognition','What is d/dx of integral from a to x of f(t) dt?','f(x)','FTC Part 1.',None),
+        ('Calc 1 — Ch 5','5.3 Fundamental Theorem','Recognition','How do you evaluate integral from a to b of f(x) dx using an antiderivative F?','F(b)-F(a)','FTC Part 2.',None),
+        ('Calc 1 — Ch 5','5.4 Indefinite Integrals','Recognition','Why is +C required on an indefinite integral?','Antiderivatives differ by an arbitrary constant','The derivative of any constant is zero.',None),
+        ('Calc 1 — Ch 5','5.5 Substitution','Recognition','You see a composite expression and its derivative factor inside an integral. What method should you try?','u-substitution','Reverse the chain rule.',None),
+        ('Calc 1 — Ch 5','5.5 Substitution','Recognition','For integral x*cos(x^2) dx, what is a natural u choice?','u=x^2','Its derivative supplies the x dx factor.',None),
+
+        # CHAPTER 6 — APPLICATIONS OF INTEGRATION
+        ('Calc 1 — Ch 6','6.1 Area Between Curves','Recognition','How do you set up area between y=f(x) and y=g(x) using vertical slices?','integral of top minus bottom','Area must be nonnegative.',None),
+        ('Calc 1 — Ch 6','6.1 Area Between Curves','Recognition','Using horizontal slices, what replaces top minus bottom?','Right minus left','Integrate with respect to y.',None),
+        ('Calc 1 — Ch 6','6.2 Volumes','Recognition','Cross sections perpendicular to the axis are solid disks. What volume method?','Disk method','V=integral pi R^2.',None),
+        ('Calc 1 — Ch 6','6.2 Volumes','Recognition','Cross sections have an outer and inner radius. What volume method?','Washer method','V=integral pi(R^2-r^2).',None),
+        ('Calc 1 — Ch 6','6.3 Cylindrical Shells','Recognition','A rotated region is easier to describe with slices parallel to the axis of rotation. What method should you consider?','Shell method','V=integral 2*pi*(radius)*(height).',None),
+        ('Calc 1 — Ch 6','6.4 Work','Recognition','What basic integration pattern models work by a variable force?','integral F(x) dx','Add force times small displacement.',None),
+        ('Calc 1 — Ch 6','6.5 Average Value','Recognition','What is the average value of f on [a,b]?','1/(b-a) times integral from a to b of f(x) dx','Integral divided by interval length.',None),
+        ('Calc 1 — Ch 6','6.1-6.5 Applications','Recognition','Before setting up an application integral, what should you identify first?','The quantity represented by one thin slice','Build the integral from a differential piece.',None),
+
+        # CHAPTER 7 — TECHNIQUES OF INTEGRATION
+        ('Calc 2 — Ch 7','7.1 Integration by Parts','Recognition','You see a product such as x*e^x or x*sin x. What integration method should you consider?','Integration by parts','Products of unlike function types often signal IBP.',None),
+        ('Calc 2 — Ch 7','7.1 Integration by Parts','Recognition','What is the integration-by-parts formula?','integral u dv=u*v-integral v du','Choose u to simplify when differentiated.',None),
+        ('Calc 2 — Ch 7','7.2 Trig Integrals','Recognition','For integral sin^m(x) cos^n(x) dx with an odd sine power, what common strategy works?','Save one sin x and convert the rest using sin^2 x=1-cos^2 x','Then use u=cos x.',None),
+        ('Calc 2 — Ch 7','7.3 Trig Substitution','Recognition','You see sqrt(a^2-x^2). What trig substitution pattern should you recognize?','x=a sin(theta)','Then a^2-x^2 becomes a^2 cos^2(theta).',None),
+        ('Calc 2 — Ch 7','7.3 Trig Substitution','Recognition','You see sqrt(a^2+x^2). What trig substitution pattern should you recognize?','x=a tan(theta)','Use 1+tan^2=sec^2.',None),
+        ('Calc 2 — Ch 7','7.4 Partial Fractions','Recognition','A rational function has a factorable denominator and numerator degree is smaller. What method should you consider?','Partial fractions','Decompose into simpler rational pieces.',None),
+        ('Calc 2 — Ch 7','7.4 Partial Fractions','Recognition','If numerator degree is at least denominator degree, what should you do before partial fractions?','Polynomial long division','Make the rational function proper first.',None),
+        ('Calc 2 — Ch 7','7.8 Improper Integrals','Recognition','An integral has an infinite bound or an infinite discontinuity. What kind of integral is it?','Improper integral','Rewrite it as a limit.',None),
+        ('Calc 2 — Ch 7','7.8 Improper Integrals','Recognition','What determines whether an improper integral converges?','Whether its defining limit is finite','If the limit is infinite or fails to exist, it diverges.',None),
+
+        # CHAPTER 8 — FURTHER APPLICATIONS OF INTEGRATION
+        ('Calc 2 — Ch 8','8.1 Arc Length','Recognition','What is the arc-length formula for y=f(x) from a to b?','integral sqrt(1+(f prime(x))^2) dx','Arc length comes from tiny Pythagorean segments.',None),
+        ('Calc 2 — Ch 8','8.2 Surface Area','Recognition','For rotating y=f(x) about the x-axis, what factor appears in the surface-area integral?','2*pi*y*sqrt(1+(y prime)^2)','Circumference times slant-length element.',None),
+        ('Calc 2 — Ch 8','8.3 Applications','Recognition','A variable physical quantity is distributed along a line or region. What calculus idea is usually used to total it?','Integration','Density times a small element is accumulated.',None),
+        ('Calc 2 — Ch 8','8.3 Hydrostatic Force','Recognition','What determines fluid pressure at depth h?','rho*g*h','Pressure increases linearly with depth.',None),
+        ('Calc 2 — Ch 8','8.3 Hydrostatic Force','Recognition','How is hydrostatic force on a submerged plate built?','Integrate pressure times strip area','Use a representative horizontal strip.',None),
+        ('Calc 2 — Ch 8','8.1-8.3 Applications','Recognition','For an unfamiliar integration application, what is the best first question?','What does one small slice contribute?','Model dQ first, then integrate.',None),
+
+        # CHAPTER 9 — DIFFERENTIAL EQUATIONS
+        ('Calc 2 — Ch 9','9.1 Modeling with DEs','Recognition','What is a differential equation?','An equation involving an unknown function and one or more derivatives','The derivative describes how the unknown changes.',None),
+        ('Calc 2 — Ch 9','9.2 Direction Fields','Recognition','What does a direction field show?','The slope prescribed by a differential equation at many points','Solution curves follow the small slope segments.',None),
+        ('Calc 2 — Ch 9','9.3 Separable Equations','Recognition','If dy/dx can be written as g(x)h(y), what method should you consider?','Separation of variables','Move y terms with dy and x terms with dx, then integrate.',None),
+        ('Calc 2 — Ch 9','9.3 Separable Equations','Recognition','After integrating a separable DE, what often remains to finish an IVP?','Use the initial condition to solve for C','The initial condition selects one solution.',None),
+        ('Calc 2 — Ch 9','9.4 Exponential Growth and Decay','Recognition','A quantity changes at a rate proportional to itself. What model should you recognize?','dy/dt=k*y','Its solutions are exponential.',None),
+        ('Calc 2 — Ch 9','9.5 Linear Equations','Recognition','What standard form identifies a first-order linear differential equation?','y prime+P(x)y=Q(x)','y and y prime appear only to the first power and are not multiplied together.',None),
+        ('Calc 2 — Ch 9','9.5 Linear Equations','Recognition','For y prime+P(x)y=Q(x), what method should you think of?','Integrating factor','mu=e^(integral P(x) dx).',None),
+        ('Calc 2 — Ch 9','9.5 Linear Equations','Recognition','What makes y prime+y^2=x nonlinear?','The dependent variable is squared','Linear DEs cannot contain nonlinear powers/functions of y.',None),
+
+        # CHAPTER 10 — PARAMETRIC & POLAR
+        ('Calc 2 — Ch 10','10.1 Parametric Curves','Recognition','In parametric equations x=f(t), y=g(t), what does t do?','It traces the point along the curve','Both coordinates depend on the same parameter.',None),
+        ('Calc 2 — Ch 10','10.2 Parametric Calculus','Recognition','How do you compute dy/dx for x=f(t), y=g(t)?','(dy/dt)/(dx/dt)','Divide the component rates, provided dx/dt is nonzero.',None),
+        ('Calc 2 — Ch 10','10.2 Parametric Calculus','Recognition','What quantity is integrated for arc length of a parametric plane curve?','sqrt((dx/dt)^2+(dy/dt)^2)','This is speed.',None),
+        ('Calc 2 — Ch 10','10.3 Polar Coordinates','Recognition','What conversion takes polar coordinates to Cartesian coordinates?','x=r*cos(theta), y=r*sin(theta)','Polar gives distance and angle.',None),
+        ('Calc 2 — Ch 10','10.3 Polar Coordinates','Recognition','What Cartesian identity follows from x=r cos(theta), y=r sin(theta)?','r^2=x^2+y^2','Square and add.',None),
+        ('Calc 2 — Ch 10','10.4 Polar Curves','Recognition','When sketching r=f(theta), what should you track?','How radius r changes as theta changes','Negative r plots in the opposite direction.',None),
+        ('Calc 2 — Ch 10','10.4 Polar Area','Recognition','What is the basic polar-area formula?','1/2 integral r^2 d(theta)','Polar sectors contribute one-half r squared d-theta.',None),
+        ('Calc 2 — Ch 10','10.4 Polar Curves','Multiple Choice','Which polar equation describes a circle centered at the origin with radius 3?','r=3','Constant radius gives a centered circle.',['r=3','theta=3','r=3theta','r=cos(theta)']),
+
+        # CHAPTER 11 — SEQUENCES & SERIES
+        ('Calc 2 — Ch 11','11.1 Sequences','Recognition','What does it mean for a sequence a_n to converge to L?','a_n approaches L as n approaches infinity','Sequence convergence is a limit.',None),
+        ('Calc 2 — Ch 11','11.2 Series','Recognition','What must be true of a_n if sum a_n converges?','a_n approaches 0','If terms do not approach zero, the series diverges.',None),
+        ('Calc 2 — Ch 11','11.2 Geometric Series','Recognition','What condition makes sum a*r^n converge?','|r|<1','Then the infinite sum is a/(1-r) with the appropriate starting index.',None),
+        ('Calc 2 — Ch 11','11.3 Integral Test','Recognition','A positive decreasing series resembles a function that is easy to integrate. What test may fit?','Integral test','Compare sum f(n) with integral f(x) dx.',None),
+        ('Calc 2 — Ch 11','11.4 Comparison Tests','Recognition','Two positive-term series have similar size and one benchmark is known. What family of tests should you consider?','Comparison test','Use direct or limit comparison.',None),
+        ('Calc 2 — Ch 11','11.5 Alternating Series','Recognition','What two conditions give convergence by the Alternating Series Test?','Terms decrease in magnitude and approach 0','Alternation alone is not enough.',None),
+        ('Calc 2 — Ch 11','11.6 Ratio and Root Tests','Recognition','Factorials or exponentials dominate the terms of a series. What test is often efficient?','Ratio test','Ratios simplify factorials and powers well.',None),
+        ('Calc 2 — Ch 11','11.8 Power Series','Recognition','What must you check after the ratio test gives an interval for a power series?','Test both endpoints separately','Endpoints can behave differently.',None),
+        ('Calc 2 — Ch 11','11.9 Taylor Series','Recognition','What is a Taylor series designed to do?','Represent a function locally as an infinite polynomial','Coefficients come from derivatives at the center.',None),
+        ('Calc 2 — Ch 11','11.10 Maclaurin Series','Recognition','What is a Maclaurin series?','A Taylor series centered at 0','Maclaurin is the special case a=0.',None),
+        ('Calc 2 — Ch 11','11.10 Maclaurin Series','Recognition','What is the Maclaurin series for e^x?','sum from n=0 to infinity of x^n/n!','One of the core series to recognize.',None),
+        ('Calc 2 — Ch 11','11.10 Maclaurin Series','Recognition','What is the first question to ask when choosing a convergence test?','What structural pattern does the series have?','Look for geometric, p-series, alternating, factorial/exponential, or comparison patterns before calculating.',None),
     ]
-    for subj,top,ctype,front,back,hint in interactive_cards:
-        if not c.execute('SELECT 1 FROM cards WHERE front=?',(front,)).fetchone():
-            c.execute('INSERT INTO cards(subject,topic,card_type,front,back,hint,created_at,choices) VALUES (?,?,?,?,?,?,?,NULL)',(subj,top,ctype,front,back,hint,now()))
+    curriculum_cards = early_calc_cards + curriculum_cards
+    for subject,top,ctype,front,back,hint,choices in curriculum_cards:
+        if not c.execute('SELECT 1 FROM cards WHERE subject=? AND front=?',(subject,front)).fetchone():
+            packed='|||'.join(choices) if choices else None
+            c.execute('INSERT INTO cards(subject,topic,card_type,front,back,hint,created_at,choices) VALUES (?,?,?,?,?,?,?,?)',(subject,top,ctype,front,back,hint,now(),packed))
     c.commit()
     c.close()
 
@@ -123,8 +215,8 @@ def stats():
     d['mastery']=d.apply(lambda r:0 if r.attempts==0 else max(0,min(100,100-r.weakness)),axis=1)
     return d
 
-def record(cid,result,conf,answer_mode='Flashcards',review_stage=0):
-    c=conn();c.execute('INSERT INTO attempts(card_id,result,confidence,attempted_at,answer_mode,review_stage) VALUES (?,?,?,?,?,?)',(int(cid),result,int(conf),now(),answer_mode,int(review_stage)));c.commit();c.close()
+def record(cid,result,conf,answer_mode='Flashcards'):
+    c=conn();c.execute('INSERT INTO attempts(card_id,result,confidence,attempted_at,answer_mode) VALUES (?,?,?,?,?)',(int(cid),result,int(conf),now(),answer_mode));c.commit();c.close()
 
 def get_best_quiz_streak():
     c=conn();r=c.execute("SELECT value FROM records WHERE key='best_quiz_streak'").fetchone();c.close();return int(r[0]) if r else 0
@@ -205,65 +297,20 @@ def answers_match(user,expected):
     except:
         return False
 
-CALC3_SECTION_TOPICS={
-    '12 — Vectors & Geometry of Space':['Dot product','Cross product','Planes','Line intersection'],
-    '13 — Vector Functions':['Vector functions','Vector integrals','Particle motion','Integration patterns'],
-}
-
-def scope_topics_from_preset(preset):
-    if preset=='Exam: Sections 12 & 13':
-        return CALC3_SECTION_TOPICS['12 — Vectors & Geometry of Space']+CALC3_SECTION_TOPICS['13 — Vector Functions']
-    if preset in CALC3_SECTION_TOPICS:return CALC3_SECTION_TOPICS[preset]
-    return []
-
-def eligible_cards(subject,topic,answer_style='Flashcards',topics=None,card_ids=None):
-    d=stats()
+def pick(mode,subject,topic,answer_style='Flashcards',exclude=None):
+    d=stats();
     if subject!='All': d=d[d.subject==subject]
-    if topics: d=d[d.topic.isin(topics)]
-    elif topic!='All': d=d[d.topic==topic]
-    if card_ids: d=d[d.id.isin([int(x) for x in card_ids])]
+    if topic!='All': d=d[d.topic==topic]
     if answer_style=='Multiple Choice': d=d[d.choices.notna() & (d.choices.astype(str).str.strip()!='')]
     elif answer_style=='Fill in Blank': d=d[d.apply(is_fillable,axis=1)]
     elif answer_style=='Mixed Quiz': d=d[(d.choices.notna() & (d.choices.astype(str).str.strip()!='')) | d.apply(is_fillable,axis=1)]
-    elif answer_style=='Interactive Practice': d=d[d.card_type.astype(str).eq('Interactive')]
-    return d
-
-def pick(mode,subject,topic,answer_style='Flashcards',exclude=None,exclude_topic=None,topics=None,card_ids=None):
-    d=eligible_cards(subject,topic,answer_style,topics,card_ids)
     if exclude and len(d)>1: d=d[d.id!=exclude]
-    if exclude_topic and len(d)>1:
-        alt=d[d.topic!=exclude_topic]
-        if not alt.empty:d=alt
     if d.empty:return None
     if mode=='Weakest First':
-        p=d.sort_values(['weakness','wrong','attempts'],ascending=[False,False,True]).head(min(12,len(d)))
-        return p.sample(1,weights=[max(float(x),1) for x in p.weakness]).iloc[0]
+        p=d.sort_values(['weakness','wrong','attempts'],ascending=[False,False,True]).head(min(12,len(d)));return p.sample(1,weights=[max(float(x),1) for x in p.weakness]).iloc[0]
     if mode=='Missed Only':
-        p=d[d.wrong>0];p=d if p.empty else p
-        return p.sample(1,weights=[max(float(x),1) for x in p.weakness]).iloc[0]
+        p=d[d.wrong>0];p=d if p.empty else p;return p.sample(1,weights=[max(float(x),1) for x in p.weakness]).iloc[0]
     return d.sample(1).iloc[0]
-
-def concept_variant(card_id,subject,topic,answer_style,topics=None,card_ids=None):
-    d=eligible_cards(subject,topic,answer_style,topics,card_ids)
-    d=d[d.id!=int(card_id)]
-    if d.empty:return int(card_id)
-    d=d.sort_values(['attempts','weakness'],ascending=[True,False]).head(min(6,len(d)))
-    return int(d.sample(1).iloc[0].id)
-
-def concept_progress():
-    c=conn()
-    q=pd.read_sql_query("SELECT c.subject,c.topic,a.card_id,a.result,COALESCE(a.review_stage,0) review_stage FROM attempts a JOIN cards c ON c.id=a.card_id",c)
-    c.close()
-    if q.empty:return pd.DataFrame(columns=['subject','topic','attempts','correct','spaced_successes','variations','concept_mastered'])
-    rows=[]
-    for (subj,top),g in q.groupby(['subject','topic']):
-        correct=g[g.result=='Correct']
-        rows.append({'subject':subj,'topic':top,'attempts':len(g),'correct':len(correct),
-                     'spaced_successes':int(((g.result=='Correct') & (g.review_stage>0)).sum()),
-                     'variations':int(correct.card_id.nunique())})
-    out=pd.DataFrame(rows)
-    out['concept_mastered']=(out.spaced_successes>=3)&(out.variations>=2)
-    return out
 
 def streak():
     c=conn();r=[x[0] for x in c.execute('SELECT result FROM attempts ORDER BY id DESC').fetchall()];c.close();n=0
@@ -289,9 +336,6 @@ def expr_latex(raw):
     """Convert the compact notation stored in the deck into readable LaTeX."""
     import re
     s=str(raw).strip()
-    # Normalize common Unicode math glyphs used in the deck before building LaTeX.
-    s=(s.replace('²','^2').replace('³','^3').replace('⁴','^4')
-         .replace('⁵','^5').replace('⁶','^6').replace('⁻','-'))
     # coordinate pairs / ordered pairs
     if re.fullmatch(r'\([^()]+,[^()]+\)',s):
         a,b=[x.strip() for x in s[1:-1].split(',',1)]
@@ -341,24 +385,13 @@ def question_markup(raw):
     if q.endswith('= ?') and not q.startswith(('Which','For','At','In')):
         lhs=q[:-3].strip()
         return 'latex',rf"{expr_latex(lhs)}=\ ?"
-    # Mixed prose with an embedded integral, e.g.
-    # "You see ∫ 1/(1+t²) dt. What antiderivative should you recognize?"
-    # Keep the sentence as prose but render the mathematical expression with KaTeX.
-    m=re.search(r'∫\s*(.+?)\s+d([A-Za-z])(?=[.?!,]|\s|$)',q)
-    if m:
-        integrand=m.group(1).strip()
-        var=m.group(2)
-        latex_integral=rf'\displaystyle \int {expr_latex(integrand)}\,d{var}'
-        q=q[:m.start()]+f'${latex_integral}$'+q[m.end():]
-
-    # Other mixed-prose replacements.
+    # mixed prose replacements
     q=q.replace('d/dx[(x^2+1)^5]',r'$\frac{d}{dx}\left[(x^2+1)^5\right]$')
     q=q.replace('[F(x)]_a^b',r'$\left[F(x)\right]_a^b$')
     q=q.replace('e^(-1)',r'$e^{-1}$').replace('e^(-x)',r'$e^{-x}$')
     q=q.replace('0° (0 rad)',r'$0^\circ\;(0\text{ rad})$')
     q=q.replace('90° (pi/2)',r'$90^\circ\;(\pi/2)$')
     q=q.replace('(cos theta, sin theta)',r'$(\cos\theta,\sin\theta)$')
-    q=re.sub(r'(?<![$\w])ln\s+([A-Za-z])',lambda m: rf'$\ln({m.group(1)})$',q)
     return 'md',q
 
 def option_markup(raw):
@@ -368,84 +401,28 @@ def option_markup(raw):
     if any(x in s.lower() for x in prose_markers) and not any(ch in s for ch in '^/=()'):
         return esc(s)
     return f'${expr_latex(s)}$'
-def make_interactive_payload(r):
-    """Create one randomized, reproducible-on-rerun practice variation."""
-    top=str(r.topic)
-    if top=='Dot product':
-        a=[random.randint(-5,5) for _ in range(3)]
-        b=[random.randint(-5,5) for _ in range(3)]
-        while a==[0,0,0]: a=[random.randint(-5,5) for _ in range(3)]
-        while b==[0,0,0]: b=[random.randint(-5,5) for _ in range(3)]
-        return {'kind':'dot','a':a,'b':b,'answer':sum(x*y for x,y in zip(a,b))}
-    if top=='Cross product':
-        a=[random.randint(-4,4) for _ in range(3)]
-        b=[random.randint(-4,4) for _ in range(3)]
-        while a==[0,0,0] or b==[0,0,0] or a==b:
-            a=[random.randint(-4,4) for _ in range(3)];b=[random.randint(-4,4) for _ in range(3)]
-        ans=[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]
-        return {'kind':'cross','a':a,'b':b,'answer':ans}
-    if top=='Product rule':
-        return {'kind':'product','answer':["f'","g","f","g'"]}
-    if top=='Quotient rule':
-        return {'kind':'quotient','answer':['g',"f'",'f',"g'",'g']}
-    if top=='Power rule':
-        n=random.randint(2,9)
-        return {'kind':'power','n':n,'answer':[n,n-1]}
-    if top=='Chain rule':
-        a=random.choice([2,3,4,5]);b=random.randint(1,6);n=random.randint(2,6)
-        return {'kind':'chain','a':a,'b':b,'n':n,'answer':[n*a,n-1]}
-    return {'kind':'unknown'}
-
-def interactive_payload(r):
-    cid=int(r.id)
-    if st.session_state.get('interactive_payload_card')!=cid or not st.session_state.get('interactive_payload'):
-        st.session_state.interactive_payload=make_interactive_payload(r)
-        st.session_state.interactive_payload_card=cid
-        st.session_state.interactive_result=None
-    return st.session_state.interactive_payload
-
-def vector_latex(v):
-    return r'\langle '+',\,'.join(str(int(x)) for x in v)+r'\rangle'
-
 def elapsed(s):
     t=datetime.fromisoformat(s);q=max(0,int((datetime.now(timezone.utc)-t).total_seconds()));return f'{q//60}:{q%60:02d}'
 
 init()
-for k,v in {'card_id':None,'show_answer':False,'show_hint':False,'sig':None,'session_start':now(),'session_seen':0,'target':12,'last_card':None,'last_topic':None,'mc_choice':None,'answer_style':'Flashcards','session_correct':0,'session_quiz_answered':0,'perfect_streak':0,'fill_value':'','review_queue':[],'current_review_stage':0,'adaptive_note':'','interactive_payload':None,'interactive_payload_card':None,'interactive_result':None}.items():
+for k,v in {'card_id':None,'show_answer':False,'show_hint':False,'sig':None,'session_start':now(),'session_seen':0,'target':12,'last_card':None,'mc_choice':None,'answer_style':'Flashcards','session_correct':0,'session_quiz_answered':0,'perfect_streak':0,'fill_value':''}.items():
     if k not in st.session_state:st.session_state[k]=v
 
 with st.sidebar:
     st.markdown('<div class="brand"><div class="brain">🧠</div><div><h2>Study Cards</h2><div class="sub">Study smarter. Master faster.</div></div></div>',unsafe_allow_html=True)
     st.markdown('### Study Controls')
-    answer_styles=['Flashcards','Multiple Choice','Fill in Blank','Mixed Quiz','Interactive Practice'];answer_style=st.radio('Answer style',answer_styles,index=answer_styles.index(st.session_state.answer_style) if st.session_state.answer_style in answer_styles else 0,help='Perfect streaks count objectively graded Multiple Choice, Fill in Blank, and Interactive Practice answers.')
+    answer_style=st.radio('Answer style',['Flashcards','Multiple Choice','Fill in Blank','Mixed Quiz'],index=['Flashcards','Multiple Choice','Fill in Blank','Mixed Quiz'].index(st.session_state.answer_style),help='Perfect streaks count only objective quiz answers: Multiple Choice and Fill in Blank.')
     st.session_state.answer_style=answer_style
     mode=st.radio('Card order',['Weakest First','Missed Only','Random'])
     cd=cards_df();subjects=['All']+sorted(cd.subject.unique());subject=st.selectbox('Subject',subjects)
-    st.markdown('#### 🎯 Study Scope')
-    scope_options=['All material','Exam: Sections 12 & 13','12 — Vectors & Geometry of Space','13 — Vector Functions','Custom topics','Specific questions']
-    scope_mode=st.selectbox('Practice set',scope_options,index=1 if subject=='Calc 3' else 0,help='Limit the adaptive engine to only the material you want to study.')
-    fd=cd if subject=='All' else cd[cd.subject==subject]
-    selected_topics=[];selected_card_ids=[];topic='All'
-    if scope_mode in CALC3_SECTION_TOPICS or scope_mode=='Exam: Sections 12 & 13':
-        selected_topics=[t for t in scope_topics_from_preset(scope_mode) if t in set(fd.topic)]
-        st.caption('Included: '+(', '.join(selected_topics) if selected_topics else 'No matching cards yet'))
-    elif scope_mode=='Custom topics':
-        selected_topics=st.multiselect('Choose topics',sorted(fd.topic.unique()),default=[])
-    elif scope_mode=='Specific questions':
-        qdf=fd.copy();qdf['label']=qdf.apply(lambda r:f"{r.topic} · {str(r.front)[:62]}",axis=1)
-        labels=st.multiselect('Choose exact questions',qdf.label.tolist(),default=[])
-        selected_card_ids=qdf[qdf.label.isin(labels)].id.astype(int).tolist()
-    else:
-        topic=st.selectbox('Topic',['All']+sorted(fd.topic.unique()))
-    if scope_mode!='All material':
-        st.caption('Adaptive Weakest First, spaced reviews, and mastery scoring stay inside this study scope.')
+    fd=cd if subject=='All' else cd[cd.subject==subject];topics=['All']+sorted(fd.topic.unique());topic=st.selectbox('Topic',topics)
     if st.button('▶ Start a New Session',type='primary',use_container_width=True):
-        st.session_state.session_start=now();st.session_state.session_seen=0;st.session_state.session_correct=0;st.session_state.session_quiz_answered=0;st.session_state.perfect_streak=0;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.session_state.review_queue=[];st.session_state.current_review_stage=0;st.session_state.last_topic=None;st.session_state.adaptive_note='';st.session_state.interactive_payload=None;st.session_state.interactive_payload_card=None;st.session_state.interactive_result=None;st.rerun()
-    st.caption('Adaptive spacing is on: misses return after a short delay, then a concept variation returns later. Topics are interleaved when possible.')
+        st.session_state.session_start=now();st.session_state.session_seen=0;st.session_state.session_correct=0;st.session_state.session_quiz_answered=0;st.session_state.perfect_streak=0;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.rerun()
+    st.caption('Weakest First automatically prioritizes the cards you miss most often.')
     st.markdown(f'<div class="record-card"><div class="record-sub">🏆 PERFECT STREAK RECORD</div><div class="record-num">{get_best_quiz_streak()}</div><div class="record-sub">objective answers correct in a row</div></div>',unsafe_allow_html=True)
     st.markdown('<div class="quote">“A little progress every day adds up to big results.”</div>',unsafe_allow_html=True)
 
-sig=(mode,subject,topic,answer_style,scope_mode,tuple(selected_topics),tuple(selected_card_ids))
+sig=(mode,subject,topic,answer_style)
 if sig!=st.session_state.sig:st.session_state.sig=sig;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False
 
 st.markdown('<div class="brand"><div class="brain">🧠</div><div><h2>Engineering Study Cards</h2><div class="sub">Study smarter. Master faster.</div></div></div>',unsafe_allow_html=True)
@@ -455,27 +432,14 @@ with t1:
     st.markdown('<div class="hero"><div class="badge">🎯 Same Effort.<br>Bigger Results.</div><h1>Engineering Study Cards</h1><p>Adaptive flashcards that focus on what you need most.</p></div>',unsafe_allow_html=True)
     d=stats();sc=d.copy()
     if subject!='All':sc=sc[sc.subject==subject]
-    if selected_topics:sc=sc[sc.topic.isin(selected_topics)]
-    elif selected_card_ids:sc=sc[sc.id.isin(selected_card_ids)]
-    elif topic!='All':sc=sc[sc.topic==topic]
+    if topic!='All':sc=sc[sc.topic==topic]
     a=int(sc.attempts.sum()) if len(sc) else 0;c=int(sc.correct.sum()) if len(sc) else 0;ac=100*c/a if a else 0;w=int((sc.weakness>=60).sum()) if len(sc) else 0;m=float(sc.mastery.mean()) if len(sc) else 0
-    st.markdown(f'<div class="metrics"><div class="mcard"><div class="mlabel">📗 Total Attempts</div><div class="mval">{a}</div><div class="mfoot">Every answer improves your model</div></div><div class="mcard"><div class="mlabel">🎯 Accuracy</div><div class="mval">{ac:.0f}%</div><div class="mfoot">Correct across this filter</div></div><div class="mcard"><div class="mlabel">⚠️ Weak Cards</div><div class="mval">{w}</div><div class="mfoot">Priority score ≥ 60</div></div><div class="mcard"><div class="mlabel">🏆 Best Perfect Streak</div><div class="mval perfect">{get_best_quiz_streak()}</div><div class="mfoot">MCQ + fill-in + interactive</div></div></div>',unsafe_allow_html=True)
-    st.markdown(f'<div class="session-banner"><div class="session-stat"><strong>{answer_style}</strong><span>Current answer style</span></div><div class="session-stat"><strong>{st.session_state.session_correct}/{st.session_state.session_quiz_answered}</strong><span>Quiz score this session</span></div><div class="session-stat"><strong class="perfect">{st.session_state.perfect_streak} 🔥</strong><span>Current perfect streak</span></div><div class="session-stat"><strong>{len(st.session_state.review_queue)}</strong><span>Spaced reviews queued</span></div></div>',unsafe_allow_html=True)
-    if scope_mode!='All material':
-        readiness=float(sc.mastery.mean()) if len(sc) else 0
-        st.progress(readiness/100,text=f'Exam / custom scope readiness: {readiness:.0f}%')
+    st.markdown(f'<div class="metrics"><div class="mcard"><div class="mlabel">📗 Total Attempts</div><div class="mval">{a}</div><div class="mfoot">Every answer improves your model</div></div><div class="mcard"><div class="mlabel">🎯 Accuracy</div><div class="mval">{ac:.0f}%</div><div class="mfoot">Correct across this filter</div></div><div class="mcard"><div class="mlabel">⚠️ Weak Cards</div><div class="mval">{w}</div><div class="mfoot">Priority score ≥ 60</div></div><div class="mcard"><div class="mlabel">🏆 Best Perfect Streak</div><div class="mval perfect">{get_best_quiz_streak()}</div><div class="mfoot">MCQ + fill-in answers</div></div></div>',unsafe_allow_html=True)
+    st.markdown(f'<div class="session-banner"><div class="session-stat"><strong>{answer_style}</strong><span>Current answer style</span></div><div class="session-stat"><strong>{st.session_state.session_correct}/{st.session_state.session_quiz_answered}</strong><span>Quiz score this session</span></div><div class="session-stat"><strong class="perfect">{st.session_state.perfect_streak} 🔥</strong><span>Current perfect streak</span></div><div class="session-stat"><strong>{elapsed(st.session_state.session_start)}</strong><span>Session time</span></div></div>',unsafe_allow_html=True)
 
     if st.session_state.card_id is None:
-        due=[x for x in st.session_state.review_queue if int(x.get('due',9999))<=st.session_state.session_seen]
-        if due:
-            item=sorted(due,key=lambda x:(x.get('due',9999),-x.get('stage',0)))[0]
-            st.session_state.review_queue.remove(item)
-            st.session_state.card_id=int(item['card_id']);st.session_state.current_review_stage=int(item.get('stage',1))
-            st.session_state.adaptive_note='Scheduled review — retrieve it from memory before checking the answer.'
-        else:
-            r=pick(mode,subject,topic,answer_style,st.session_state.last_card,st.session_state.last_topic,selected_topics,selected_card_ids)
-            if r is not None:
-                st.session_state.card_id=int(r.id);st.session_state.current_review_stage=0;st.session_state.adaptive_note=''
+        r=pick(mode,subject,topic,answer_style,st.session_state.last_card)
+        if r is not None:st.session_state.card_id=int(r.id)
     cur=stats();cur=cur[cur.id==st.session_state.card_id]
     if cur.empty:
         st.info('No cards match this combination. Try another subject/topic or answer style.')
@@ -485,8 +449,6 @@ with t1:
             idx=min(st.session_state.session_seen+1,st.session_state.target)
             hint=esc(r.hint) if st.session_state.show_hint else 'Try to identify the rule or pattern before answering.'
             qkind,qvalue=question_markup(r.front)
-            if st.session_state.adaptive_note:
-                st.info('🧠 '+st.session_state.adaptive_note)
 
             def objective_result(correct):
                 st.session_state.session_quiz_answered += 1
@@ -498,31 +460,8 @@ with t1:
                     st.session_state.perfect_streak = 0
 
             def advance(result,conf,ans_mode):
-                stage=int(st.session_state.current_review_stage or 0)
-                record(r.id,result,conf,ans_mode,stage)
-                next_step=st.session_state.session_seen+1
-                if result=='Wrong':
-                    delay=random.randint(3,5)
-                    st.session_state.review_queue.append({'card_id':int(r.id),'due':next_step+delay,'stage':max(1,stage+1)})
-                elif result=='Correct' and stage>0 and stage<3:
-                    vid=concept_variant(r.id,r.subject,r.topic,answer_style,selected_topics,selected_card_ids)
-                    delay=random.randint(8,12)
-                    st.session_state.review_queue.append({'card_id':int(vid),'due':next_step+delay,'stage':stage+1})
-                st.session_state.last_card=int(r.id);st.session_state.last_topic=str(r.topic);st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.session_state.current_review_stage=0;st.session_state.adaptive_note='';st.session_state.interactive_payload=None;st.session_state.interactive_payload_card=None;st.session_state.interactive_result=None;st.session_state.session_seen+=1;st.rerun()
-
-            def skip_to_needs_work():
-                # A skip is evidence that recall is not yet secure. Record it as a miss for
-                # weakness/adaptive scheduling, but do not count it as a submitted quiz answer.
-                stage=int(st.session_state.current_review_stage or 0)
-                record(r.id,'Wrong',1,'Skipped',stage)
-                st.session_state.perfect_streak=0
-                next_step=st.session_state.session_seen+1
-                st.session_state.review_queue.append({'card_id':int(r.id),'due':next_step+random.randint(3,5),'stage':max(1,stage+1)})
-                st.session_state.last_card=int(r.id);st.session_state.last_topic=str(r.topic);st.session_state.card_id=None
-                st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value=''
-                st.session_state.current_review_stage=0;st.session_state.adaptive_note='';st.session_state.interactive_payload=None
-                st.session_state.interactive_payload_card=None;st.session_state.interactive_result=None;st.session_state.session_seen+=1
-                st.rerun()
+                record(r.id,result,conf,ans_mode)
+                st.session_state.last_card=int(r.id);st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.session_state.session_seen+=1;st.rerun()
 
             # FLASHCARD MODE — self-rated, no objective streak scoring.
             if answer_style=='Flashcards':
@@ -554,142 +493,6 @@ with t1:
                     if q3.button('🔵 Got it',use_container_width=True):advance('Correct',3,'Flashcards')
                     if q4.button('✅ Easy',use_container_width=True):advance('Correct',5,'Flashcards')
                 st.markdown('<div class="objective-note">Flashcard ratings improve the weakness tracker, but do not affect your Perfect Streak record.</div>',unsafe_allow_html=True)
-
-            elif answer_style=='Interactive Practice':
-                payload=interactive_payload(r)
-                kind=payload.get('kind')
-                with st.container(key='flashcard'):
-                    st.markdown(f'<span class="count">Card {idx} of {st.session_state.target} ☆</span><span class="pill">{esc(r.subject)}</span><span class="pill blue">{esc(r.topic)}</span>',unsafe_allow_html=True)
-                    st.markdown('<div style="height:12px"></div>',unsafe_allow_html=True)
-                    if kind=='dot':
-                        st.markdown('### Compute the dot product')
-                        st.latex(rf"\mathbf a={vector_latex(payload['a'])}\qquad \mathbf b={vector_latex(payload['b'])}")
-                        st.latex(r"\mathbf a\cdot\mathbf b=\ ?")
-                    elif kind=='cross':
-                        st.markdown('### Build the cross product from the determinant')
-                        a,b=payload['a'],payload['b']
-                        st.latex(rf"\mathbf a\times\mathbf b=\begin{{vmatrix}}\mathbf i&\mathbf j&\mathbf k\\{a[0]}&{a[1]}&{a[2]}\\{b[0]}&{b[1]}&{b[2]}\end{{vmatrix}}")
-                        st.caption('Cover one column at a time. You choose which entries multiply and which product gets subtracted. The app will not reveal the setup before you try it.')
-                        st.latex(r"\mathbf a\times\mathbf b=\langle\ ?,\ ?,\ ?\ \rangle")
-                    elif kind=='product':
-                        st.markdown('### Build the product rule')
-                        st.latex(r"\frac{d}{dx}[f(x)g(x)]")
-                        st.caption('Choose what belongs in each slot. The preview updates as you build it.')
-                    elif kind=='quotient':
-                        st.markdown('### Build the quotient rule')
-                        st.latex(r"\frac{d}{dx}\left[\frac{f(x)}{g(x)}\right]")
-                        st.caption('Build the numerator first, then choose the denominator base.')
-                    elif kind=='power':
-                        st.markdown('### Complete the power rule')
-                        st.latex(rf"\frac{{d}}{{dx}}x^{{{payload['n']}}}=\boxed{{\ ?\ }}x^{{\boxed{{\ ?\ }}}}")
-                    elif kind=='chain':
-                        st.markdown('### Complete the chain-rule derivative')
-                        st.latex(rf"\frac{{d}}{{dx}}\left({payload['a']}x+{payload['b']}\right)^{{{payload['n']}}}=\boxed{{\ ?\ }}\left({payload['a']}x+{payload['b']}\right)^{{\boxed{{\ ?\ }}}}")
-                    st.markdown('<div class="rule"></div>',unsafe_allow_html=True)
-                    st.markdown(f'<div class="hint">💡 {hint}</div>',unsafe_allow_html=True)
-
-                correct_now=None
-                response_desc=''
-                if kind=='dot':
-                    val=st.number_input('Dot product (scalar)',step=1,value=None,placeholder='Enter the scalar result')
-                    if st.button('✓ Check Interactive Answer',type='primary',use_container_width=True,disabled=val is None):
-                        correct_now=(int(val)==int(payload['answer']));response_desc=str(int(val));objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
-                elif kind=='cross':
-                    a,b=payload['a'],payload['b']
-                    st.markdown('#### Fill in the cross-product pattern')
-                    st.caption('Use the determinant above. Enter the four factors for each component, then its result.')
-
-                    def compact_cross_row(label, keybase, outside_minus=False):
-                        cols=st.columns([.55,1,0.28,1,0.5,1,0.28,1,0.5,1.15])
-                        cols[0].markdown(f'**{label}:**')
-                        p1=cols[1].number_input(f'{label} factor 1',step=1,value=None,key=f'{keybase}_1_{r.id}',label_visibility='collapsed',placeholder='?')
-                        cols[2].markdown('×')
-                        p2=cols[3].number_input(f'{label} factor 2',step=1,value=None,key=f'{keybase}_2_{r.id}',label_visibility='collapsed',placeholder='?')
-                        cols[4].markdown('−')
-                        q1=cols[5].number_input(f'{label} factor 3',step=1,value=None,key=f'{keybase}_3_{r.id}',label_visibility='collapsed',placeholder='?')
-                        cols[6].markdown('×')
-                        q2=cols[7].number_input(f'{label} factor 4',step=1,value=None,key=f'{keybase}_4_{r.id}',label_visibility='collapsed',placeholder='?')
-                        cols[8].markdown('=')
-                        ans=cols[9].number_input(f'{label} result',step=1,value=None,key=f'{keybase}_ans_{r.id}',label_visibility='collapsed',placeholder='result')
-                        if outside_minus:
-                            st.caption('↳ Remember: the j component has the outside − sign.')
-                        return [p1,p2,q1,q2],ans
-
-                    bi,vi=compact_cross_row('i','cross_i_fill')
-                    bj,vj=compact_cross_row('j','cross_j_fill',True)
-                    bk,vk=compact_cross_row('k','cross_k_fill')
-
-                    expected_num={
-                        'i': [(a[1],b[2]),(a[2],b[1])],
-                        'j': [(a[0],b[2]),(a[2],b[0])],
-                        'k': [(a[0],b[1]),(a[1],b[0])],
-                    }
-                    def pair_ok(x,y,expected): return sorted((int(x),int(y)))==sorted((int(expected[0]),int(expected[1])))
-                    def setup_ok_num(sel,expected):
-                        if any(x is None for x in sel): return False
-                        return pair_ok(sel[0],sel[1],expected[0]) and pair_ok(sel[2],sel[3],expected[1])
-                    ready=all(x is not None for x in bi+bj+bk+[vi,vj,vk])
-                    if st.button('✓ Check Cross Product',type='primary',use_container_width=True,disabled=not ready):
-                        setup_correct=(setup_ok_num(bi,expected_num['i']) and setup_ok_num(bj,expected_num['j']) and setup_ok_num(bk,expected_num['k']))
-                        vals=[int(vi),int(vj),int(vk)]
-                        numeric_correct=(vals==payload['answer'])
-                        correct_now=(setup_correct and numeric_correct)
-                        response_desc=f'setup={setup_correct}, vector={vals}'
-                        objective_result(correct_now)
-                        st.session_state.interactive_result={'correct':correct_now,'response':response_desc,'setup_correct':setup_correct,'numeric_correct':numeric_correct}
-                        st.session_state.show_answer=True;st.rerun()
-                elif kind=='product':
-                    opts=['—','f',"f'",'g',"g'"]
-                    c1,c2,c3,c4=st.columns(4);s1=c1.selectbox('Slot 1',opts,key=f'pr1_{r.id}');s2=c2.selectbox('Slot 2',opts,key=f'pr2_{r.id}');s3=c3.selectbox('Slot 3',opts,key=f'pr3_{r.id}');s4=c4.selectbox('Slot 4',opts,key=f'pr4_{r.id}')
-                    preview=[s if s!='—' else r'\square' for s in [s1,s2,s3,s4]];st.latex(rf"({preview[0]})({preview[1]})+({preview[2]})({preview[3]})")
-                    ready=all(x!='—' for x in [s1,s2,s3,s4])
-                    if st.button('✓ Check Rule Builder',type='primary',use_container_width=True,disabled=not ready):
-                        vals=[s1,s2,s3,s4]
-                        # Multiplication order does not matter inside either product, and the two
-                        # product terms may appear in either order because they are added.
-                        submitted_terms={frozenset((s1,s2)), frozenset((s3,s4))}
-                        expected_terms={frozenset(("f'",'g')), frozenset(('f',"g'"))}
-                        correct_now=(submitted_terms==expected_terms)
-                        response_desc=' '.join(vals);objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
-                elif kind=='quotient':
-                    opts=['—','f',"f'",'g',"g'"]
-                    c1,c2,c3,c4=st.columns(4);s1=c1.selectbox('Numerator 1',opts,key=f'qr1_{r.id}');s2=c2.selectbox('Numerator 2',opts,key=f'qr2_{r.id}');s3=c3.selectbox('Numerator 3',opts,key=f'qr3_{r.id}');s4=c4.selectbox('Numerator 4',opts,key=f'qr4_{r.id}')
-                    den=st.selectbox('Denominator base (squared)',opts,key=f'qr5_{r.id}')
-                    pv=[s if s!='—' else r'\square' for s in [s1,s2,s3,s4,den]];st.latex(rf"\frac{{({pv[0]})({pv[1]})-({pv[2]})({pv[3]})}}{{({pv[4]})^2}}")
-                    ready=all(x!='—' for x in [s1,s2,s3,s4,den])
-                    if st.button('✓ Check Rule Builder',type='primary',use_container_width=True,disabled=not ready):
-                        vals=[s1,s2,s3,s4,den]
-                        # Quotient rule subtraction order matters, but multiplication order inside
-                        # each numerator product does not: gf' == f'g and fg' == g'f.
-                        first_product=frozenset((s1,s2))
-                        second_product=frozenset((s3,s4))
-                        correct_now=(first_product==frozenset(('g',"f'")) and second_product==frozenset(('f',"g'")) and den=='g')
-                        response_desc=' '.join(vals);objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
-                elif kind in {'power','chain'}:
-                    a1,a2=st.columns(2);coef=a1.number_input('Coefficient',step=1,value=None);exp=a2.number_input('New exponent',step=1,value=None)
-                    if st.button('✓ Check Interactive Answer',type='primary',use_container_width=True,disabled=coef is None or exp is None):
-                        vals=[int(coef),int(exp)];correct_now=(vals==payload['answer']);response_desc=str(vals);objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
-
-                if not st.session_state.show_answer:
-                    if st.button('⏭ Skip — Mark Needs Work',use_container_width=True,help='Records this card as needing work and schedules it for a spaced review.'):
-                        skip_to_needs_work()
-
-                if st.session_state.show_answer and st.session_state.interactive_result:
-                    rr=st.session_state.interactive_result;ok=bool(rr['correct']);cls='ok' if ok else 'no';msg='✅ Correct!' if ok else '❌ Not quite'
-                    st.markdown(f'<div class="interactive-feedback {cls}"><strong>{msg}</strong><div class="small">Your response: {esc(rr.get("response",""))}</div></div>',unsafe_allow_html=True)
-                    st.markdown('**Correct construction:**')
-                    if kind=='dot': st.latex(rf"\mathbf a\cdot\mathbf b={payload['answer']}")
-                    elif kind=='cross':
-                        a,b=payload['a'],payload['b']
-                        if not rr.get('setup_correct',True): st.caption('Your determinant pairings need work. Compare your choices with the covered-column setup below.')
-                        elif not rr.get('numeric_correct',True): st.caption('Your determinant setup was correct; the miss came from the arithmetic.')
-                        st.latex(rf"\mathbf i\left[({a[1]})({b[2]})-({a[2]})({b[1]})\right]-\mathbf j\left[({a[0]})({b[2]})-({a[2]})({b[0]})\right]+\mathbf k\left[({a[0]})({b[1]})-({a[1]})({b[0]})\right]")
-                        st.latex(rf"\mathbf a\times\mathbf b={vector_latex(payload['answer'])}")
-                    elif kind=='product': st.latex(r"(fg)'=f'g+fg'")
-                    elif kind=='quotient': st.latex(r"\left(\frac{f}{g}\right)'=\frac{gf'-fg'}{g^2}")
-                    elif kind=='power': st.latex(rf"\frac{{d}}{{dx}}x^{{{payload['n']}}}={payload['answer'][0]}x^{{{payload['answer'][1]}}}")
-                    elif kind=='chain': st.latex(rf"\frac{{d}}{{dx}}({payload['a']}x+{payload['b']})^{{{payload['n']}}}={payload['answer'][0]}({payload['a']}x+{payload['b']})^{{{payload['answer'][1]}}}")
-                    if st.button('Next Question →',type='primary',use_container_width=True):advance('Correct' if ok else 'Wrong',5 if ok else 1,'Interactive Practice')
 
             else:
                 # Choose objective rendering. Mixed Quiz uses MCQ when choices exist, otherwise fill-in.
@@ -758,13 +561,6 @@ with t2:
     d=stats();g=d.groupby(['subject','topic'],as_index=False).agg(attempts=('attempts','sum'),correct=('correct','sum'),wrong=('wrong','sum'),avg_weakness=('weakness','mean'),avg_mastery=('mastery','mean'));g['accuracy']=g.apply(lambda r:100*r.correct/r.attempts if r.attempts else 0,axis=1);g['Topic']=g.subject+' · '+g.topic
     a,b=st.columns(2);a.bar_chart(g.set_index('Topic')['avg_mastery'],horizontal=True);b.dataframe(g.sort_values('avg_weakness',ascending=False)[['subject','topic','attempts','wrong','accuracy','avg_weakness']],use_container_width=True,hide_index=True)
     st.markdown('### Cards needing the most work');st.dataframe(d.sort_values(['weakness','wrong'],ascending=False)[['subject','topic','front','attempts','correct','wrong','accuracy','weakness']].head(20),use_container_width=True,hide_index=True)
-    st.markdown('### Concept mastery')
-    cp=concept_progress()
-    if cp.empty: st.caption('Concept mastery appears after you begin answering cards.')
-    else:
-        cp['status']=cp['concept_mastered'].map({True:'✅ Mastered',False:'🔁 Building'})
-        st.caption('A concept is promoted after at least 3 successful delayed reviews across at least 2 different question variations.')
-        st.dataframe(cp.sort_values(['concept_mastered','spaced_successes','variations'],ascending=[True,True,True])[['subject','topic','spaced_successes','variations','status']],use_container_width=True,hide_index=True)
 
 with t3:
     st.markdown('## Deck Manager')
@@ -777,4 +573,4 @@ with t3:
     st.dataframe(cards_df()[['subject','topic','card_type','front','back']],use_container_width=True,hide_index=True)
 
 with t4:
-    st.markdown('## Settings');st.session_state.target=st.slider('Cards per study session',5,40,int(st.session_state.target));st.info('Adaptive retrieval is enabled: a miss returns after 3–5 other questions; a successful delayed review schedules a concept variation 8–12 questions later. Topics are interleaved when possible. Perfect streaks count objectively graded Multiple Choice, Fill in Blank, and Interactive Practice answers. Progress is currently stored in local SQLite; Streamlit Community Cloud can reset local files during rebuilds.')
+    st.markdown('## Settings');st.session_state.target=st.slider('Cards per study session',5,40,int(st.session_state.target));st.info('Perfect streaks only count objectively graded Multiple Choice and Fill in Blank answers. Flashcard self-ratings still train the weakness model, but never affect the streak record. Progress is currently stored in local SQLite; Streamlit Community Cloud can reset local files during rebuilds.')

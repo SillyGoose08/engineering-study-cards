@@ -1,42 +1,13 @@
-# Engineering Study Cards — Interactive Practice
+# Engineering Study Cards — Complete Calculus Curriculum
 
-Adaptive Streamlit study app with flashcards, multiple choice, fill-in-the-blank, mixed quizzes, spaced retrieval, concept mastery, and interactive math/vector builders.
+This build expands the adaptive study deck to cover **Calculus Chapters 1–17**, while preserving the visual UI, adaptive weakness tracking, quiz modes, streaks, and concept-aware fill-in grading.
 
-## New interactive practice mode
-Choose **Interactive Practice** in the sidebar. The app now generates randomized objective questions for:
+## Curriculum
+- Chapters 1–6: Calculus I foundations
+- Chapters 7–11: Calculus II integration, differential equations, parametric/polar, sequences and series
+- Chapters 12–16: Calculus III / vector calculus
+- Chapter 17: second-order differential equations
 
-- Dot product — enter the scalar result
-- Cross product — enter the i, j, k components
-- Product rule — build the rule by selecting the correct factors in four slots
-- Quotient rule — build the numerator and denominator structure
-- Power rule — enter the coefficient and new exponent
-- Chain rule — complete the coefficient and outer exponent for randomized `(ax+b)^n` derivatives
+Cards emphasize **Recognition → Setup/Method → Calculation** so the app trains method selection as well as computation.
 
-Interactive answers count toward the current quiz score and Perfect Streak. Misses enter the same adaptive retrieval queue as the other objective modes, so they return after spacing and can generate new randomized variations.
-
-## Study engine
-- Missed questions return after 3–5 intervening questions.
-- Successful delayed reviews schedule another concept variation roughly 8–12 questions later.
-- Topics are interleaved where possible.
-- Concept mastery requires multiple successful delayed retrievals and question variations.
-
-## Run
-```bash
-pip install -r requirements.txt
-streamlit run app.py
-```
-
-
-## Cross-product visual builder + Skip
-- Cross-product interactive questions now show the full i/j/k determinant, the +/−/+ expansion, and the exact two products used for each component.
-- Added **Skip — Mark Needs Work** in Interactive Practice. A skipped card is recorded as a weakness and automatically queued for a spaced review after 3–5 other questions; it does not count as a submitted quiz answer.
-
-## Rule-builder equivalence update
-- Product rule now accepts any mathematically equivalent ordering of the two factors and either order of the two added product terms.
-- Quotient rule now accepts either multiplication order inside each numerator product (for example `f'g` or `gf'`) while correctly preserving the subtraction order and denominator `g^2`.
-
-- Cross product interactive practice now uses compact numeric fill-in rows instead of dropdown builders.
-
-
-## Exam scope + mobile update
-Responsive iPad/iPhone layouts and scoped practice presets for Calc 3 Sections 12 and 13. Custom topic and exact-question selection keep adaptive retrieval inside the chosen exam scope.
+Deploy by replacing `app.py`, `requirements.txt`, and `README.md` in the Streamlit repo root.
