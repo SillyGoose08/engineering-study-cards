@@ -1,25 +1,27 @@
-# Engineering Study Cards — Quiz Modes + Perfect Streaks
+# Engineering Study Cards — Interactive Practice
 
-Adaptive Streamlit study app with four answer styles:
+Adaptive Streamlit study app with flashcards, multiple choice, fill-in-the-blank, mixed quizzes, spaced retrieval, concept mastery, and interactive math/vector builders.
 
-- **Flashcards** — Quizlet-style flip presentation with self-rating
-- **Multiple Choice** — objectively graded A/B/C/D questions
-- **Fill in Blank** — type simple math answers directly
-- **Mixed Quiz** — uses multiple choice when options exist and fill-in for simple cards
+## New interactive practice mode
+Choose **Interactive Practice** in the sidebar. The app now generates randomized objective questions for:
 
-## New in this build
+- Dot product — enter the scalar result
+- Cross product — enter the i, j, k components
+- Product rule — build the rule by selecting the correct factors in four slots
+- Quotient rule — build the numerator and denominator structure
+- Power rule — enter the coefficient and new exponent
+- Chain rule — complete the coefficient and outer exponent for randomized `(ax+b)^n` derivatives
 
-- **Start a New Session** resets the timer, session score, progress, and current perfect streak.
-- **Perfect Streak Record** tracks the best number of objectively graded answers answered correctly in a row.
-- Flashcard self-ratings still train the weakness model but **do not affect the perfect streak**.
-- Fill-in answers accept normalized spacing/case/basic notation.
-- Math prompts and answers retain LaTeX formatting.
-- Deck Manager can create Flashcard, Multiple Choice, and Fill in Blank cards.
+Interactive answers count toward the current quiz score and Perfect Streak. Misses enter the same adaptive retrieval queue as the other objective modes, so they return after spacing and can generate new randomized variations.
 
-## Files
+## Study engine
+- Missed questions return after 3–5 intervening questions.
+- Successful delayed reviews schedule another concept variation roughly 8–12 questions later.
+- Topics are interleaved where possible.
+- Concept mastery requires multiple successful delayed retrievals and question variations.
 
-Upload `app.py`, `requirements.txt`, and `README.md` to the GitHub repo root. Streamlit Community Cloud should redeploy automatically.
-
-## Storage note
-
-Progress is currently stored in local SQLite (`flashcards.db`). Streamlit Community Cloud may reset local files during rebuilds, so durable cloud storage is still a future upgrade.
+## Run
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```

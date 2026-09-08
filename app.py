@@ -44,6 +44,9 @@ button[kind="primary"]{background:linear-gradient(90deg,#5368ff,#762cff)!importa
 .quiz-answer{background:linear-gradient(180deg,#0d1f34,#0a1727);border:1px solid var(--border);border-radius:14px;padding:16px;margin:10px 0}.correct-glow{border-color:#2bd47f;box-shadow:0 0 0 1px rgba(43,212,127,.15)}.wrong-glow{border-color:#ff5a6f;box-shadow:0 0 0 1px rgba(255,90,111,.15)}
 .fill-help{font-size:12px;color:var(--muted);margin:-4px 0 8px}.perfect{color:#ffd768!important}.objective-note{background:rgba(118,87,255,.08);border:1px solid rgba(118,87,255,.35);padding:10px 12px;border-radius:10px;color:#c9d2e4;font-size:12px}
 @media(max-width:900px){.session-banner,.mode-strip{grid-template-columns:repeat(2,1fr)}}
+
+/* Interactive practice builders */
+.interactive-panel{background:linear-gradient(180deg,#0d1f34,#081725);border:1px solid #294665;border-radius:16px;padding:18px 20px;margin:12px 0 14px}.interactive-title{font-size:18px;font-weight:850;color:#eef5ff;margin-bottom:5px}.interactive-sub{font-size:12px;color:var(--muted);margin-bottom:14px}.formula-builder{background:#f7f9fd;color:#10203c;border:1px solid #d5deec;border-radius:14px;padding:16px 18px;margin:10px 0 14px;text-align:center}.formula-builder .katex{font-size:1.35em}.vector-chip{display:inline-block;background:#e7e0ff;color:#563cd6;border-radius:10px;padding:7px 10px;margin:3px 5px 3px 0;font-weight:800}.interactive-feedback{border-radius:13px;padding:13px 15px;margin:12px 0}.interactive-feedback.ok{border:1px solid #2bd47f;background:rgba(43,212,127,.08)}.interactive-feedback.no{border:1px solid #ff5a6f;background:rgba(255,90,111,.08)}
 </style>''',unsafe_allow_html=True)
 
 def now(): return datetime.now(timezone.utc).isoformat()
@@ -56,6 +59,7 @@ def init():
     if 'choices' not in cols: c.execute('ALTER TABLE cards ADD COLUMN choices TEXT');c.commit()
     acols=[r[1] for r in c.execute('PRAGMA table_info(attempts)').fetchall()]
     if 'answer_mode' not in acols: c.execute('ALTER TABLE attempts ADD COLUMN answer_mode TEXT');c.commit()
+    if 'review_stage' not in acols: c.execute('ALTER TABLE attempts ADD COLUMN review_stage INTEGER DEFAULT 0');c.commit()
     c.execute("INSERT OR IGNORE INTO records(key,value) VALUES ('best_quiz_streak',0)");c.commit()
     if c.execute('SELECT COUNT(*) FROM cards').fetchone()[0]==0:
         cards=[
@@ -74,6 +78,20 @@ def init():
     for top,front,back,choices,hint in mcqs:
         if not c.execute('SELECT 1 FROM cards WHERE front=?',(front,)).fetchone():
             c.execute('INSERT INTO cards(subject,topic,card_type,front,back,hint,created_at,choices) VALUES (?,?,?,?,?,?,?,?)',('Math Foundations',top,'Multiple Choice',front,back,hint,now(),'|||'.join(choices)))
+    # Interactive practice base cards are inserted even for existing databases.
+    # Their parameters are randomized each time they are served, so one base card
+    # represents many practice variations while still feeding the same concept tracker.
+    interactive_cards=[
+        ('Calc 3','Dot product','Interactive','INTERACTIVE_DOT','Dot product','Compute the scalar by multiplying matching components and adding.'),
+        ('Calc 3','Cross product','Interactive','INTERACTIVE_CROSS','Cross product','Use the determinant / component formula and watch the j-sign.'),
+        ('Math Foundations','Product rule','Interactive','INTERACTIVE_PRODUCT_RULE','Product rule',"Build (fg)' = f'g + fg'."),
+        ('Math Foundations','Quotient rule','Interactive','INTERACTIVE_QUOTIENT_RULE','Quotient rule',"For f/g: low·d(high) − high·d(low), over low²."),
+        ('Math Foundations','Power rule','Interactive','INTERACTIVE_POWER_RULE','Power rule','Bring the exponent down, then subtract 1 from the exponent.'),
+        ('Math Foundations','Chain rule','Interactive','INTERACTIVE_CHAIN_RULE','Chain rule','Differentiate the outer function, keep the inner, then multiply by the inner derivative.'),
+    ]
+    for subj,top,ctype,front,back,hint in interactive_cards:
+        if not c.execute('SELECT 1 FROM cards WHERE front=?',(front,)).fetchone():
+            c.execute('INSERT INTO cards(subject,topic,card_type,front,back,hint,created_at,choices) VALUES (?,?,?,?,?,?,?,NULL)',(subj,top,ctype,front,back,hint,now()))
     c.commit()
     c.close()
 
@@ -88,8 +106,8 @@ def stats():
     d['mastery']=d.apply(lambda r:0 if r.attempts==0 else max(0,min(100,100-r.weakness)),axis=1)
     return d
 
-def record(cid,result,conf,answer_mode='Flashcards'):
-    c=conn();c.execute('INSERT INTO attempts(card_id,result,confidence,attempted_at,answer_mode) VALUES (?,?,?,?,?)',(int(cid),result,int(conf),now(),answer_mode));c.commit();c.close()
+def record(cid,result,conf,answer_mode='Flashcards',review_stage=0):
+    c=conn();c.execute('INSERT INTO attempts(card_id,result,confidence,attempted_at,answer_mode,review_stage) VALUES (?,?,?,?,?,?)',(int(cid),result,int(conf),now(),answer_mode,int(review_stage)));c.commit();c.close()
 
 def get_best_quiz_streak():
     c=conn();r=c.execute("SELECT value FROM records WHERE key='best_quiz_streak'").fetchone();c.close();return int(r[0]) if r else 0
@@ -170,20 +188,52 @@ def answers_match(user,expected):
     except:
         return False
 
-def pick(mode,subject,topic,answer_style='Flashcards',exclude=None):
-    d=stats();
+def eligible_cards(subject,topic,answer_style='Flashcards'):
+    d=stats()
     if subject!='All': d=d[d.subject==subject]
     if topic!='All': d=d[d.topic==topic]
     if answer_style=='Multiple Choice': d=d[d.choices.notna() & (d.choices.astype(str).str.strip()!='')]
     elif answer_style=='Fill in Blank': d=d[d.apply(is_fillable,axis=1)]
     elif answer_style=='Mixed Quiz': d=d[(d.choices.notna() & (d.choices.astype(str).str.strip()!='')) | d.apply(is_fillable,axis=1)]
+    elif answer_style=='Interactive Practice': d=d[d.card_type.astype(str).eq('Interactive')]
+    return d
+
+def pick(mode,subject,topic,answer_style='Flashcards',exclude=None,exclude_topic=None):
+    d=eligible_cards(subject,topic,answer_style)
     if exclude and len(d)>1: d=d[d.id!=exclude]
+    if exclude_topic and len(d)>1:
+        alt=d[d.topic!=exclude_topic]
+        if not alt.empty:d=alt
     if d.empty:return None
     if mode=='Weakest First':
-        p=d.sort_values(['weakness','wrong','attempts'],ascending=[False,False,True]).head(min(12,len(d)));return p.sample(1,weights=[max(float(x),1) for x in p.weakness]).iloc[0]
+        p=d.sort_values(['weakness','wrong','attempts'],ascending=[False,False,True]).head(min(12,len(d)))
+        return p.sample(1,weights=[max(float(x),1) for x in p.weakness]).iloc[0]
     if mode=='Missed Only':
-        p=d[d.wrong>0];p=d if p.empty else p;return p.sample(1,weights=[max(float(x),1) for x in p.weakness]).iloc[0]
+        p=d[d.wrong>0];p=d if p.empty else p
+        return p.sample(1,weights=[max(float(x),1) for x in p.weakness]).iloc[0]
     return d.sample(1).iloc[0]
+
+def concept_variant(card_id,subject,topic,answer_style):
+    d=eligible_cards(subject,topic,answer_style)
+    d=d[d.id!=int(card_id)]
+    if d.empty:return int(card_id)
+    d=d.sort_values(['attempts','weakness'],ascending=[True,False]).head(min(6,len(d)))
+    return int(d.sample(1).iloc[0].id)
+
+def concept_progress():
+    c=conn()
+    q=pd.read_sql_query("SELECT c.subject,c.topic,a.card_id,a.result,COALESCE(a.review_stage,0) review_stage FROM attempts a JOIN cards c ON c.id=a.card_id",c)
+    c.close()
+    if q.empty:return pd.DataFrame(columns=['subject','topic','attempts','correct','spaced_successes','variations','concept_mastered'])
+    rows=[]
+    for (subj,top),g in q.groupby(['subject','topic']):
+        correct=g[g.result=='Correct']
+        rows.append({'subject':subj,'topic':top,'attempts':len(g),'correct':len(correct),
+                     'spaced_successes':int(((g.result=='Correct') & (g.review_stage>0)).sum()),
+                     'variations':int(correct.card_id.nunique())})
+    out=pd.DataFrame(rows)
+    out['concept_mastered']=(out.spaced_successes>=3)&(out.variations>=2)
+    return out
 
 def streak():
     c=conn();r=[x[0] for x in c.execute('SELECT result FROM attempts ORDER BY id DESC').fetchall()];c.close();n=0
@@ -288,24 +338,63 @@ def option_markup(raw):
     if any(x in s.lower() for x in prose_markers) and not any(ch in s for ch in '^/=()'):
         return esc(s)
     return f'${expr_latex(s)}$'
+def make_interactive_payload(r):
+    """Create one randomized, reproducible-on-rerun practice variation."""
+    top=str(r.topic)
+    if top=='Dot product':
+        a=[random.randint(-5,5) for _ in range(3)]
+        b=[random.randint(-5,5) for _ in range(3)]
+        while a==[0,0,0]: a=[random.randint(-5,5) for _ in range(3)]
+        while b==[0,0,0]: b=[random.randint(-5,5) for _ in range(3)]
+        return {'kind':'dot','a':a,'b':b,'answer':sum(x*y for x,y in zip(a,b))}
+    if top=='Cross product':
+        a=[random.randint(-4,4) for _ in range(3)]
+        b=[random.randint(-4,4) for _ in range(3)]
+        while a==[0,0,0] or b==[0,0,0] or a==b:
+            a=[random.randint(-4,4) for _ in range(3)];b=[random.randint(-4,4) for _ in range(3)]
+        ans=[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]
+        return {'kind':'cross','a':a,'b':b,'answer':ans}
+    if top=='Product rule':
+        return {'kind':'product','answer':["f'","g","f","g'"]}
+    if top=='Quotient rule':
+        return {'kind':'quotient','answer':['g',"f'",'f',"g'",'g']}
+    if top=='Power rule':
+        n=random.randint(2,9)
+        return {'kind':'power','n':n,'answer':[n,n-1]}
+    if top=='Chain rule':
+        a=random.choice([2,3,4,5]);b=random.randint(1,6);n=random.randint(2,6)
+        return {'kind':'chain','a':a,'b':b,'n':n,'answer':[n*a,n-1]}
+    return {'kind':'unknown'}
+
+def interactive_payload(r):
+    cid=int(r.id)
+    if st.session_state.get('interactive_payload_card')!=cid or not st.session_state.get('interactive_payload'):
+        st.session_state.interactive_payload=make_interactive_payload(r)
+        st.session_state.interactive_payload_card=cid
+        st.session_state.interactive_result=None
+    return st.session_state.interactive_payload
+
+def vector_latex(v):
+    return r'\langle '+',\,'.join(str(int(x)) for x in v)+r'\rangle'
+
 def elapsed(s):
     t=datetime.fromisoformat(s);q=max(0,int((datetime.now(timezone.utc)-t).total_seconds()));return f'{q//60}:{q%60:02d}'
 
 init()
-for k,v in {'card_id':None,'show_answer':False,'show_hint':False,'sig':None,'session_start':now(),'session_seen':0,'target':12,'last_card':None,'mc_choice':None,'answer_style':'Flashcards','session_correct':0,'session_quiz_answered':0,'perfect_streak':0,'fill_value':''}.items():
+for k,v in {'card_id':None,'show_answer':False,'show_hint':False,'sig':None,'session_start':now(),'session_seen':0,'target':12,'last_card':None,'last_topic':None,'mc_choice':None,'answer_style':'Flashcards','session_correct':0,'session_quiz_answered':0,'perfect_streak':0,'fill_value':'','review_queue':[],'current_review_stage':0,'adaptive_note':'','interactive_payload':None,'interactive_payload_card':None,'interactive_result':None}.items():
     if k not in st.session_state:st.session_state[k]=v
 
 with st.sidebar:
     st.markdown('<div class="brand"><div class="brain">🧠</div><div><h2>Study Cards</h2><div class="sub">Study smarter. Master faster.</div></div></div>',unsafe_allow_html=True)
     st.markdown('### Study Controls')
-    answer_style=st.radio('Answer style',['Flashcards','Multiple Choice','Fill in Blank','Mixed Quiz'],index=['Flashcards','Multiple Choice','Fill in Blank','Mixed Quiz'].index(st.session_state.answer_style),help='Perfect streaks count only objective quiz answers: Multiple Choice and Fill in Blank.')
+    answer_styles=['Flashcards','Multiple Choice','Fill in Blank','Mixed Quiz','Interactive Practice'];answer_style=st.radio('Answer style',answer_styles,index=answer_styles.index(st.session_state.answer_style) if st.session_state.answer_style in answer_styles else 0,help='Perfect streaks count objectively graded Multiple Choice, Fill in Blank, and Interactive Practice answers.')
     st.session_state.answer_style=answer_style
     mode=st.radio('Card order',['Weakest First','Missed Only','Random'])
     cd=cards_df();subjects=['All']+sorted(cd.subject.unique());subject=st.selectbox('Subject',subjects)
     fd=cd if subject=='All' else cd[cd.subject==subject];topics=['All']+sorted(fd.topic.unique());topic=st.selectbox('Topic',topics)
     if st.button('▶ Start a New Session',type='primary',use_container_width=True):
-        st.session_state.session_start=now();st.session_state.session_seen=0;st.session_state.session_correct=0;st.session_state.session_quiz_answered=0;st.session_state.perfect_streak=0;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.rerun()
-    st.caption('Weakest First automatically prioritizes the cards you miss most often.')
+        st.session_state.session_start=now();st.session_state.session_seen=0;st.session_state.session_correct=0;st.session_state.session_quiz_answered=0;st.session_state.perfect_streak=0;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.session_state.review_queue=[];st.session_state.current_review_stage=0;st.session_state.last_topic=None;st.session_state.adaptive_note='';st.session_state.interactive_payload=None;st.session_state.interactive_payload_card=None;st.session_state.interactive_result=None;st.rerun()
+    st.caption('Adaptive spacing is on: misses return after a short delay, then a concept variation returns later. Topics are interleaved when possible.')
     st.markdown(f'<div class="record-card"><div class="record-sub">🏆 PERFECT STREAK RECORD</div><div class="record-num">{get_best_quiz_streak()}</div><div class="record-sub">objective answers correct in a row</div></div>',unsafe_allow_html=True)
     st.markdown('<div class="quote">“A little progress every day adds up to big results.”</div>',unsafe_allow_html=True)
 
@@ -321,12 +410,20 @@ with t1:
     if subject!='All':sc=sc[sc.subject==subject]
     if topic!='All':sc=sc[sc.topic==topic]
     a=int(sc.attempts.sum()) if len(sc) else 0;c=int(sc.correct.sum()) if len(sc) else 0;ac=100*c/a if a else 0;w=int((sc.weakness>=60).sum()) if len(sc) else 0;m=float(sc.mastery.mean()) if len(sc) else 0
-    st.markdown(f'<div class="metrics"><div class="mcard"><div class="mlabel">📗 Total Attempts</div><div class="mval">{a}</div><div class="mfoot">Every answer improves your model</div></div><div class="mcard"><div class="mlabel">🎯 Accuracy</div><div class="mval">{ac:.0f}%</div><div class="mfoot">Correct across this filter</div></div><div class="mcard"><div class="mlabel">⚠️ Weak Cards</div><div class="mval">{w}</div><div class="mfoot">Priority score ≥ 60</div></div><div class="mcard"><div class="mlabel">🏆 Best Perfect Streak</div><div class="mval perfect">{get_best_quiz_streak()}</div><div class="mfoot">MCQ + fill-in answers</div></div></div>',unsafe_allow_html=True)
-    st.markdown(f'<div class="session-banner"><div class="session-stat"><strong>{answer_style}</strong><span>Current answer style</span></div><div class="session-stat"><strong>{st.session_state.session_correct}/{st.session_state.session_quiz_answered}</strong><span>Quiz score this session</span></div><div class="session-stat"><strong class="perfect">{st.session_state.perfect_streak} 🔥</strong><span>Current perfect streak</span></div><div class="session-stat"><strong>{elapsed(st.session_state.session_start)}</strong><span>Session time</span></div></div>',unsafe_allow_html=True)
+    st.markdown(f'<div class="metrics"><div class="mcard"><div class="mlabel">📗 Total Attempts</div><div class="mval">{a}</div><div class="mfoot">Every answer improves your model</div></div><div class="mcard"><div class="mlabel">🎯 Accuracy</div><div class="mval">{ac:.0f}%</div><div class="mfoot">Correct across this filter</div></div><div class="mcard"><div class="mlabel">⚠️ Weak Cards</div><div class="mval">{w}</div><div class="mfoot">Priority score ≥ 60</div></div><div class="mcard"><div class="mlabel">🏆 Best Perfect Streak</div><div class="mval perfect">{get_best_quiz_streak()}</div><div class="mfoot">MCQ + fill-in + interactive</div></div></div>',unsafe_allow_html=True)
+    st.markdown(f'<div class="session-banner"><div class="session-stat"><strong>{answer_style}</strong><span>Current answer style</span></div><div class="session-stat"><strong>{st.session_state.session_correct}/{st.session_state.session_quiz_answered}</strong><span>Quiz score this session</span></div><div class="session-stat"><strong class="perfect">{st.session_state.perfect_streak} 🔥</strong><span>Current perfect streak</span></div><div class="session-stat"><strong>{len(st.session_state.review_queue)}</strong><span>Spaced reviews queued</span></div></div>',unsafe_allow_html=True)
 
     if st.session_state.card_id is None:
-        r=pick(mode,subject,topic,answer_style,st.session_state.last_card)
-        if r is not None:st.session_state.card_id=int(r.id)
+        due=[x for x in st.session_state.review_queue if int(x.get('due',9999))<=st.session_state.session_seen]
+        if due:
+            item=sorted(due,key=lambda x:(x.get('due',9999),-x.get('stage',0)))[0]
+            st.session_state.review_queue.remove(item)
+            st.session_state.card_id=int(item['card_id']);st.session_state.current_review_stage=int(item.get('stage',1))
+            st.session_state.adaptive_note='Scheduled review — retrieve it from memory before checking the answer.'
+        else:
+            r=pick(mode,subject,topic,answer_style,st.session_state.last_card,st.session_state.last_topic)
+            if r is not None:
+                st.session_state.card_id=int(r.id);st.session_state.current_review_stage=0;st.session_state.adaptive_note=''
     cur=stats();cur=cur[cur.id==st.session_state.card_id]
     if cur.empty:
         st.info('No cards match this combination. Try another subject/topic or answer style.')
@@ -336,6 +433,8 @@ with t1:
             idx=min(st.session_state.session_seen+1,st.session_state.target)
             hint=esc(r.hint) if st.session_state.show_hint else 'Try to identify the rule or pattern before answering.'
             qkind,qvalue=question_markup(r.front)
+            if st.session_state.adaptive_note:
+                st.info('🧠 '+st.session_state.adaptive_note)
 
             def objective_result(correct):
                 st.session_state.session_quiz_answered += 1
@@ -347,8 +446,17 @@ with t1:
                     st.session_state.perfect_streak = 0
 
             def advance(result,conf,ans_mode):
-                record(r.id,result,conf,ans_mode)
-                st.session_state.last_card=int(r.id);st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.session_state.session_seen+=1;st.rerun()
+                stage=int(st.session_state.current_review_stage or 0)
+                record(r.id,result,conf,ans_mode,stage)
+                next_step=st.session_state.session_seen+1
+                if result=='Wrong':
+                    delay=random.randint(3,5)
+                    st.session_state.review_queue.append({'card_id':int(r.id),'due':next_step+delay,'stage':max(1,stage+1)})
+                elif result=='Correct' and stage>0 and stage<3:
+                    vid=concept_variant(r.id,r.subject,r.topic,answer_style)
+                    delay=random.randint(8,12)
+                    st.session_state.review_queue.append({'card_id':int(vid),'due':next_step+delay,'stage':stage+1})
+                st.session_state.last_card=int(r.id);st.session_state.last_topic=str(r.topic);st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.session_state.current_review_stage=0;st.session_state.adaptive_note='';st.session_state.interactive_payload=None;st.session_state.interactive_payload_card=None;st.session_state.interactive_result=None;st.session_state.session_seen+=1;st.rerun()
 
             # FLASHCARD MODE — self-rated, no objective streak scoring.
             if answer_style=='Flashcards':
@@ -380,6 +488,79 @@ with t1:
                     if q3.button('🔵 Got it',use_container_width=True):advance('Correct',3,'Flashcards')
                     if q4.button('✅ Easy',use_container_width=True):advance('Correct',5,'Flashcards')
                 st.markdown('<div class="objective-note">Flashcard ratings improve the weakness tracker, but do not affect your Perfect Streak record.</div>',unsafe_allow_html=True)
+
+            elif answer_style=='Interactive Practice':
+                payload=interactive_payload(r)
+                kind=payload.get('kind')
+                with st.container(key='flashcard'):
+                    st.markdown(f'<span class="count">Card {idx} of {st.session_state.target} ☆</span><span class="pill">{esc(r.subject)}</span><span class="pill blue">{esc(r.topic)}</span>',unsafe_allow_html=True)
+                    st.markdown('<div style="height:12px"></div>',unsafe_allow_html=True)
+                    if kind=='dot':
+                        st.markdown('### Compute the dot product')
+                        st.latex(rf"\mathbf a={vector_latex(payload['a'])}\qquad \mathbf b={vector_latex(payload['b'])}")
+                        st.latex(r"\mathbf a\cdot\mathbf b=\ ?")
+                    elif kind=='cross':
+                        st.markdown('### Compute the cross product')
+                        st.latex(rf"\mathbf a={vector_latex(payload['a'])}\qquad \mathbf b={vector_latex(payload['b'])}")
+                        st.latex(r"\mathbf a\times\mathbf b=\langle\ ?,\ ?,\ ?\ \rangle")
+                    elif kind=='product':
+                        st.markdown('### Build the product rule')
+                        st.latex(r"\frac{d}{dx}[f(x)g(x)]")
+                        st.caption('Choose what belongs in each slot. The preview updates as you build it.')
+                    elif kind=='quotient':
+                        st.markdown('### Build the quotient rule')
+                        st.latex(r"\frac{d}{dx}\left[\frac{f(x)}{g(x)}\right]")
+                        st.caption('Build the numerator first, then choose the denominator base.')
+                    elif kind=='power':
+                        st.markdown('### Complete the power rule')
+                        st.latex(rf"\frac{{d}}{{dx}}x^{{{payload['n']}}}=\boxed{{\ ?\ }}x^{{\boxed{{\ ?\ }}}}")
+                    elif kind=='chain':
+                        st.markdown('### Complete the chain-rule derivative')
+                        st.latex(rf"\frac{{d}}{{dx}}\left({payload['a']}x+{payload['b']}\right)^{{{payload['n']}}}=\boxed{{\ ?\ }}\left({payload['a']}x+{payload['b']}\right)^{{\boxed{{\ ?\ }}}}")
+                    st.markdown('<div class="rule"></div>',unsafe_allow_html=True)
+                    st.markdown(f'<div class="hint">💡 {hint}</div>',unsafe_allow_html=True)
+
+                correct_now=None
+                response_desc=''
+                if kind=='dot':
+                    val=st.number_input('Dot product (scalar)',step=1,value=None,placeholder='Enter the scalar result')
+                    if st.button('✓ Check Interactive Answer',type='primary',use_container_width=True,disabled=val is None):
+                        correct_now=(int(val)==int(payload['answer']));response_desc=str(int(val));objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
+                elif kind=='cross':
+                    c1,c2,c3=st.columns(3);vi=c1.number_input('i component',step=1,value=None);vj=c2.number_input('j component',step=1,value=None);vk=c3.number_input('k component',step=1,value=None)
+                    if st.button('✓ Check Interactive Answer',type='primary',use_container_width=True,disabled=any(v is None for v in [vi,vj,vk])):
+                        vals=[int(vi),int(vj),int(vk)];correct_now=(vals==payload['answer']);response_desc=str(vals);objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
+                elif kind=='product':
+                    opts=['—','f',"f'",'g',"g'"]
+                    c1,c2,c3,c4=st.columns(4);s1=c1.selectbox('Slot 1',opts,key=f'pr1_{r.id}');s2=c2.selectbox('Slot 2',opts,key=f'pr2_{r.id}');s3=c3.selectbox('Slot 3',opts,key=f'pr3_{r.id}');s4=c4.selectbox('Slot 4',opts,key=f'pr4_{r.id}')
+                    preview=[s if s!='—' else r'\square' for s in [s1,s2,s3,s4]];st.latex(rf"({preview[0]})({preview[1]})+({preview[2]})({preview[3]})")
+                    ready=all(x!='—' for x in [s1,s2,s3,s4])
+                    if st.button('✓ Check Rule Builder',type='primary',use_container_width=True,disabled=not ready):
+                        vals=[s1,s2,s3,s4];correct_now=(vals==payload['answer']);response_desc=' '.join(vals);objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
+                elif kind=='quotient':
+                    opts=['—','f',"f'",'g',"g'"]
+                    c1,c2,c3,c4=st.columns(4);s1=c1.selectbox('Numerator 1',opts,key=f'qr1_{r.id}');s2=c2.selectbox('Numerator 2',opts,key=f'qr2_{r.id}');s3=c3.selectbox('Numerator 3',opts,key=f'qr3_{r.id}');s4=c4.selectbox('Numerator 4',opts,key=f'qr4_{r.id}')
+                    den=st.selectbox('Denominator base (squared)',opts,key=f'qr5_{r.id}')
+                    pv=[s if s!='—' else r'\square' for s in [s1,s2,s3,s4,den]];st.latex(rf"\frac{{({pv[0]})({pv[1]})-({pv[2]})({pv[3]})}}{{({pv[4]})^2}}")
+                    ready=all(x!='—' for x in [s1,s2,s3,s4,den])
+                    if st.button('✓ Check Rule Builder',type='primary',use_container_width=True,disabled=not ready):
+                        vals=[s1,s2,s3,s4,den];correct_now=(vals==payload['answer']);response_desc=' '.join(vals);objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
+                elif kind in {'power','chain'}:
+                    a1,a2=st.columns(2);coef=a1.number_input('Coefficient',step=1,value=None);exp=a2.number_input('New exponent',step=1,value=None)
+                    if st.button('✓ Check Interactive Answer',type='primary',use_container_width=True,disabled=coef is None or exp is None):
+                        vals=[int(coef),int(exp)];correct_now=(vals==payload['answer']);response_desc=str(vals);objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
+
+                if st.session_state.show_answer and st.session_state.interactive_result:
+                    rr=st.session_state.interactive_result;ok=bool(rr['correct']);cls='ok' if ok else 'no';msg='✅ Correct!' if ok else '❌ Not quite'
+                    st.markdown(f'<div class="interactive-feedback {cls}"><strong>{msg}</strong><div class="small">Your response: {esc(rr.get("response",""))}</div></div>',unsafe_allow_html=True)
+                    st.markdown('**Correct construction:**')
+                    if kind=='dot': st.latex(rf"\mathbf a\cdot\mathbf b={payload['answer']}")
+                    elif kind=='cross': st.latex(rf"\mathbf a\times\mathbf b={vector_latex(payload['answer'])}")
+                    elif kind=='product': st.latex(r"(fg)'=f'g+fg'")
+                    elif kind=='quotient': st.latex(r"\left(\frac{f}{g}\right)'=\frac{gf'-fg'}{g^2}")
+                    elif kind=='power': st.latex(rf"\frac{{d}}{{dx}}x^{{{payload['n']}}}={payload['answer'][0]}x^{{{payload['answer'][1]}}}")
+                    elif kind=='chain': st.latex(rf"\frac{{d}}{{dx}}({payload['a']}x+{payload['b']})^{{{payload['n']}}}={payload['answer'][0]}({payload['a']}x+{payload['b']})^{{{payload['answer'][1]}}}")
+                    if st.button('Next Question →',type='primary',use_container_width=True):advance('Correct' if ok else 'Wrong',5 if ok else 1,'Interactive Practice')
 
             else:
                 # Choose objective rendering. Mixed Quiz uses MCQ when choices exist, otherwise fill-in.
@@ -448,6 +629,13 @@ with t2:
     d=stats();g=d.groupby(['subject','topic'],as_index=False).agg(attempts=('attempts','sum'),correct=('correct','sum'),wrong=('wrong','sum'),avg_weakness=('weakness','mean'),avg_mastery=('mastery','mean'));g['accuracy']=g.apply(lambda r:100*r.correct/r.attempts if r.attempts else 0,axis=1);g['Topic']=g.subject+' · '+g.topic
     a,b=st.columns(2);a.bar_chart(g.set_index('Topic')['avg_mastery'],horizontal=True);b.dataframe(g.sort_values('avg_weakness',ascending=False)[['subject','topic','attempts','wrong','accuracy','avg_weakness']],use_container_width=True,hide_index=True)
     st.markdown('### Cards needing the most work');st.dataframe(d.sort_values(['weakness','wrong'],ascending=False)[['subject','topic','front','attempts','correct','wrong','accuracy','weakness']].head(20),use_container_width=True,hide_index=True)
+    st.markdown('### Concept mastery')
+    cp=concept_progress()
+    if cp.empty: st.caption('Concept mastery appears after you begin answering cards.')
+    else:
+        cp['status']=cp['concept_mastered'].map({True:'✅ Mastered',False:'🔁 Building'})
+        st.caption('A concept is promoted after at least 3 successful delayed reviews across at least 2 different question variations.')
+        st.dataframe(cp.sort_values(['concept_mastered','spaced_successes','variations'],ascending=[True,True,True])[['subject','topic','spaced_successes','variations','status']],use_container_width=True,hide_index=True)
 
 with t3:
     st.markdown('## Deck Manager')
@@ -460,4 +648,4 @@ with t3:
     st.dataframe(cards_df()[['subject','topic','card_type','front','back']],use_container_width=True,hide_index=True)
 
 with t4:
-    st.markdown('## Settings');st.session_state.target=st.slider('Cards per study session',5,40,int(st.session_state.target));st.info('Perfect streaks only count objectively graded Multiple Choice and Fill in Blank answers. Flashcard self-ratings still train the weakness model, but never affect the streak record. Progress is currently stored in local SQLite; Streamlit Community Cloud can reset local files during rebuilds.')
+    st.markdown('## Settings');st.session_state.target=st.slider('Cards per study session',5,40,int(st.session_state.target));st.info('Adaptive retrieval is enabled: a miss returns after 3–5 other questions; a successful delayed review schedules a concept variation 8–12 questions later. Topics are interleaved when possible. Perfect streaks count objectively graded Multiple Choice, Fill in Blank, and Interactive Practice answers. Progress is currently stored in local SQLite; Streamlit Community Cloud can reset local files during rebuilds.')
