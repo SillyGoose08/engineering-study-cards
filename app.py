@@ -517,8 +517,7 @@ with t1:
                         st.markdown('### Build the cross product from the determinant')
                         a,b=payload['a'],payload['b']
                         st.latex(rf"\mathbf a\times\mathbf b=\begin{{vmatrix}}\mathbf i&\mathbf j&\mathbf k\\{a[0]}&{a[1]}&{a[2]}\\{b[0]}&{b[1]}&{b[2]}\end{{vmatrix}}")
-                        st.caption('Cover the column for each component. Remember the sign pattern:  + i,  − j,  + k.')
-                        st.latex(rf"\mathbf i\left[({a[1]})({b[2]})-({a[2]})({b[1]})\right]-\mathbf j\left[({a[0]})({b[2]})-({a[2]})({b[0]})\right]+\mathbf k\left[({a[0]})({b[1]})-({a[1]})({b[0]})\right]")
+                        st.caption('Cover one column at a time. You choose which entries multiply and which product gets subtracted. The app will not reveal the setup before you try it.')
                         st.latex(r"\mathbf a\times\mathbf b=\langle\ ?,\ ?,\ ?\ \rangle")
                     elif kind=='product':
                         st.markdown('### Build the product rule')
@@ -545,18 +544,54 @@ with t1:
                         correct_now=(int(val)==int(payload['answer']));response_desc=str(int(val));objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
                 elif kind=='cross':
                     a,b=payload['a'],payload['b']
+                    token_vals={'a₁':a[0],'a₂':a[1],'a₃':a[2],'b₁':b[0],'b₂':b[1],'b₃':b[2]}
+                    token_opts=['—']+list(token_vals.keys())
+                    st.markdown('#### Step 1 — Build each 2×2 minor')
+                    st.caption('Tap the determinant entries in the order you would multiply them. Multiplication order inside a pair does not matter.')
+                    st.markdown(f"**Entry key:**  a₁ = `{a[0]}` · a₂ = `{a[1]}` · a₃ = `{a[2]}` · b₁ = `{b[0]}` · b₂ = `{b[1]}` · b₃ = `{b[2]}`")
+
+                    def minor_builder(label, keybase, outer_sign='+'):
+                        st.markdown(f'**{label} component**' + ('  *(remember the outside − sign)*' if outer_sign=='-' else ''))
+                        x1,x2,x3,x4=st.columns(4)
+                        p1=x1.selectbox('First product · 1',token_opts,key=f'{keybase}_p1_{r.id}',label_visibility='collapsed')
+                        p2=x2.selectbox('First product · 2',token_opts,key=f'{keybase}_p2_{r.id}',label_visibility='collapsed')
+                        q1=x3.selectbox('Second product · 1',token_opts,key=f'{keybase}_q1_{r.id}',label_visibility='collapsed')
+                        q2=x4.selectbox('Second product · 2',token_opts,key=f'{keybase}_q2_{r.id}',label_visibility='collapsed')
+                        def show(tok): return tok if tok!='—' else r'\square'
+                        inside=rf"({show(p1)})({show(p2)})-({show(q1)})({show(q2)})"
+                        if outer_sign=='-': st.latex(rf"{label}:\ -\left[{inside}\right]")
+                        else: st.latex(rf"{label}:\ {inside}")
+                        return [p1,p2,q1,q2]
+
+                    bi=minor_builder('i','cross_i_build','+')
+                    bj=minor_builder('j','cross_j_build','-')
+                    bk=minor_builder('k','cross_k_build','+')
+
+                    st.markdown('#### Step 2 — Calculate your three components')
                     c1,c2,c3=st.columns(3)
-                    with c1:
-                        st.latex(rf"i:\ ({a[1]})({b[2]})-({a[2]})({b[1]})")
-                        vi=st.number_input('i component',step=1,value=None,key=f'cross_i_{r.id}')
-                    with c2:
-                        st.latex(rf"j:\ -\left[({a[0]})({b[2]})-({a[2]})({b[0]})\right]")
-                        vj=st.number_input('j component',step=1,value=None,key=f'cross_j_{r.id}')
-                    with c3:
-                        st.latex(rf"k:\ ({a[0]})({b[1]})-({a[1]})({b[0]})")
-                        vk=st.number_input('k component',step=1,value=None,key=f'cross_k_{r.id}')
-                    if st.button('✓ Check Interactive Answer',type='primary',use_container_width=True,disabled=any(v is None for v in [vi,vj,vk])):
-                        vals=[int(vi),int(vj),int(vk)];correct_now=(vals==payload['answer']);response_desc=str(vals);objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
+                    vi=c1.number_input('i component',step=1,value=None,key=f'cross_i_{r.id}')
+                    vj=c2.number_input('j component',step=1,value=None,key=f'cross_j_{r.id}')
+                    vk=c3.number_input('k component',step=1,value=None,key=f'cross_k_{r.id}')
+
+                    expected_pairs={
+                        'i': [frozenset(('a₂','b₃')),frozenset(('a₃','b₂'))],
+                        'j': [frozenset(('a₁','b₃')),frozenset(('a₃','b₁'))],
+                        'k': [frozenset(('a₁','b₂')),frozenset(('a₂','b₁'))],
+                    }
+                    def setup_ok(sel, expected):
+                        if any(x=='—' for x in sel): return False
+                        return frozenset(sel[:2])==expected[0] and frozenset(sel[2:])==expected[1]
+                    build_ready=all(x!='—' for x in bi+bj+bk)
+                    numeric_ready=not any(v is None for v in [vi,vj,vk])
+                    if st.button('✓ Check Cross Product',type='primary',use_container_width=True,disabled=not (build_ready and numeric_ready)):
+                        setup_correct=(setup_ok(bi,expected_pairs['i']) and setup_ok(bj,expected_pairs['j']) and setup_ok(bk,expected_pairs['k']))
+                        vals=[int(vi),int(vj),int(vk)]
+                        numeric_correct=(vals==payload['answer'])
+                        correct_now=(setup_correct and numeric_correct)
+                        response_desc=f'setup={setup_correct}, vector={vals}'
+                        objective_result(correct_now)
+                        st.session_state.interactive_result={'correct':correct_now,'response':response_desc,'setup_correct':setup_correct,'numeric_correct':numeric_correct}
+                        st.session_state.show_answer=True;st.rerun()
                 elif kind=='product':
                     opts=['—','f',"f'",'g',"g'"]
                     c1,c2,c3,c4=st.columns(4);s1=c1.selectbox('Slot 1',opts,key=f'pr1_{r.id}');s2=c2.selectbox('Slot 2',opts,key=f'pr2_{r.id}');s3=c3.selectbox('Slot 3',opts,key=f'pr3_{r.id}');s4=c4.selectbox('Slot 4',opts,key=f'pr4_{r.id}')
@@ -586,7 +621,12 @@ with t1:
                     st.markdown(f'<div class="interactive-feedback {cls}"><strong>{msg}</strong><div class="small">Your response: {esc(rr.get("response",""))}</div></div>',unsafe_allow_html=True)
                     st.markdown('**Correct construction:**')
                     if kind=='dot': st.latex(rf"\mathbf a\cdot\mathbf b={payload['answer']}")
-                    elif kind=='cross': st.latex(rf"\mathbf a\times\mathbf b={vector_latex(payload['answer'])}")
+                    elif kind=='cross':
+                        a,b=payload['a'],payload['b']
+                        if not rr.get('setup_correct',True): st.caption('Your determinant pairings need work. Compare your choices with the covered-column setup below.')
+                        elif not rr.get('numeric_correct',True): st.caption('Your determinant setup was correct; the miss came from the arithmetic.')
+                        st.latex(rf"\mathbf i\left[({a[1]})({b[2]})-({a[2]})({b[1]})\right]-\mathbf j\left[({a[0]})({b[2]})-({a[2]})({b[0]})\right]+\mathbf k\left[({a[0]})({b[1]})-({a[1]})({b[0]})\right]")
+                        st.latex(rf"\mathbf a\times\mathbf b={vector_latex(payload['answer'])}")
                     elif kind=='product': st.latex(r"(fg)'=f'g+fg'")
                     elif kind=='quotient': st.latex(r"\left(\frac{f}{g}\right)'=\frac{gf'-fg'}{g^2}")
                     elif kind=='power': st.latex(rf"\frac{{d}}{{dx}}x^{{{payload['n']}}}={payload['answer'][0]}x^{{{payload['answer'][1]}}}")
