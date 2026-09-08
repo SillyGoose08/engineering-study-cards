@@ -544,47 +544,41 @@ with t1:
                         correct_now=(int(val)==int(payload['answer']));response_desc=str(int(val));objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
                 elif kind=='cross':
                     a,b=payload['a'],payload['b']
-                    token_vals={'a₁':a[0],'a₂':a[1],'a₃':a[2],'b₁':b[0],'b₂':b[1],'b₃':b[2]}
-                    token_opts=['—']+list(token_vals.keys())
-                    st.markdown('#### Step 1 — Build each 2×2 minor')
-                    st.caption('Tap the determinant entries in the order you would multiply them. Multiplication order inside a pair does not matter.')
-                    st.markdown(f"**Entry key:**  a₁ = `{a[0]}` · a₂ = `{a[1]}` · a₃ = `{a[2]}` · b₁ = `{b[0]}` · b₂ = `{b[1]}` · b₃ = `{b[2]}`")
+                    st.markdown('#### Fill in the cross-product pattern')
+                    st.caption('Use the determinant above. Enter the four factors for each component, then its result.')
 
-                    def minor_builder(label, keybase, outer_sign='+'):
-                        st.markdown(f'**{label} component**' + ('  *(remember the outside − sign)*' if outer_sign=='-' else ''))
-                        x1,x2,x3,x4=st.columns(4)
-                        p1=x1.selectbox('First product · 1',token_opts,key=f'{keybase}_p1_{r.id}',label_visibility='collapsed')
-                        p2=x2.selectbox('First product · 2',token_opts,key=f'{keybase}_p2_{r.id}',label_visibility='collapsed')
-                        q1=x3.selectbox('Second product · 1',token_opts,key=f'{keybase}_q1_{r.id}',label_visibility='collapsed')
-                        q2=x4.selectbox('Second product · 2',token_opts,key=f'{keybase}_q2_{r.id}',label_visibility='collapsed')
-                        def show(tok): return tok if tok!='—' else r'\square'
-                        inside=rf"({show(p1)})({show(p2)})-({show(q1)})({show(q2)})"
-                        if outer_sign=='-': st.latex(rf"{label}:\ -\left[{inside}\right]")
-                        else: st.latex(rf"{label}:\ {inside}")
-                        return [p1,p2,q1,q2]
+                    def compact_cross_row(label, keybase, outside_minus=False):
+                        cols=st.columns([.55,1,0.28,1,0.5,1,0.28,1,0.5,1.15])
+                        cols[0].markdown(f'**{label}:**')
+                        p1=cols[1].number_input(f'{label} factor 1',step=1,value=None,key=f'{keybase}_1_{r.id}',label_visibility='collapsed',placeholder='?')
+                        cols[2].markdown('×')
+                        p2=cols[3].number_input(f'{label} factor 2',step=1,value=None,key=f'{keybase}_2_{r.id}',label_visibility='collapsed',placeholder='?')
+                        cols[4].markdown('−')
+                        q1=cols[5].number_input(f'{label} factor 3',step=1,value=None,key=f'{keybase}_3_{r.id}',label_visibility='collapsed',placeholder='?')
+                        cols[6].markdown('×')
+                        q2=cols[7].number_input(f'{label} factor 4',step=1,value=None,key=f'{keybase}_4_{r.id}',label_visibility='collapsed',placeholder='?')
+                        cols[8].markdown('=')
+                        ans=cols[9].number_input(f'{label} result',step=1,value=None,key=f'{keybase}_ans_{r.id}',label_visibility='collapsed',placeholder='result')
+                        if outside_minus:
+                            st.caption('↳ Remember: the j component has the outside − sign.')
+                        return [p1,p2,q1,q2],ans
 
-                    bi=minor_builder('i','cross_i_build','+')
-                    bj=minor_builder('j','cross_j_build','-')
-                    bk=minor_builder('k','cross_k_build','+')
+                    bi,vi=compact_cross_row('i','cross_i_fill')
+                    bj,vj=compact_cross_row('j','cross_j_fill',True)
+                    bk,vk=compact_cross_row('k','cross_k_fill')
 
-                    st.markdown('#### Step 2 — Calculate your three components')
-                    c1,c2,c3=st.columns(3)
-                    vi=c1.number_input('i component',step=1,value=None,key=f'cross_i_{r.id}')
-                    vj=c2.number_input('j component',step=1,value=None,key=f'cross_j_{r.id}')
-                    vk=c3.number_input('k component',step=1,value=None,key=f'cross_k_{r.id}')
-
-                    expected_pairs={
-                        'i': [frozenset(('a₂','b₃')),frozenset(('a₃','b₂'))],
-                        'j': [frozenset(('a₁','b₃')),frozenset(('a₃','b₁'))],
-                        'k': [frozenset(('a₁','b₂')),frozenset(('a₂','b₁'))],
+                    expected_num={
+                        'i': [(a[1],b[2]),(a[2],b[1])],
+                        'j': [(a[0],b[2]),(a[2],b[0])],
+                        'k': [(a[0],b[1]),(a[1],b[0])],
                     }
-                    def setup_ok(sel, expected):
-                        if any(x=='—' for x in sel): return False
-                        return frozenset(sel[:2])==expected[0] and frozenset(sel[2:])==expected[1]
-                    build_ready=all(x!='—' for x in bi+bj+bk)
-                    numeric_ready=not any(v is None for v in [vi,vj,vk])
-                    if st.button('✓ Check Cross Product',type='primary',use_container_width=True,disabled=not (build_ready and numeric_ready)):
-                        setup_correct=(setup_ok(bi,expected_pairs['i']) and setup_ok(bj,expected_pairs['j']) and setup_ok(bk,expected_pairs['k']))
+                    def pair_ok(x,y,expected): return sorted((int(x),int(y)))==sorted((int(expected[0]),int(expected[1])))
+                    def setup_ok_num(sel,expected):
+                        if any(x is None for x in sel): return False
+                        return pair_ok(sel[0],sel[1],expected[0]) and pair_ok(sel[2],sel[3],expected[1])
+                    ready=all(x is not None for x in bi+bj+bk+[vi,vj,vk])
+                    if st.button('✓ Check Cross Product',type='primary',use_container_width=True,disabled=not ready):
+                        setup_correct=(setup_ok_num(bi,expected_num['i']) and setup_ok_num(bj,expected_num['j']) and setup_ok_num(bk,expected_num['k']))
                         vals=[int(vi),int(vj),int(vk)]
                         numeric_correct=(vals==payload['answer'])
                         correct_now=(setup_correct and numeric_correct)
@@ -598,7 +592,13 @@ with t1:
                     preview=[s if s!='—' else r'\square' for s in [s1,s2,s3,s4]];st.latex(rf"({preview[0]})({preview[1]})+({preview[2]})({preview[3]})")
                     ready=all(x!='—' for x in [s1,s2,s3,s4])
                     if st.button('✓ Check Rule Builder',type='primary',use_container_width=True,disabled=not ready):
-                        vals=[s1,s2,s3,s4];correct_now=(vals==payload['answer']);response_desc=' '.join(vals);objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
+                        vals=[s1,s2,s3,s4]
+                        # Multiplication order does not matter inside either product, and the two
+                        # product terms may appear in either order because they are added.
+                        submitted_terms={frozenset((s1,s2)), frozenset((s3,s4))}
+                        expected_terms={frozenset(("f'",'g')), frozenset(('f',"g'"))}
+                        correct_now=(submitted_terms==expected_terms)
+                        response_desc=' '.join(vals);objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
                 elif kind=='quotient':
                     opts=['—','f',"f'",'g',"g'"]
                     c1,c2,c3,c4=st.columns(4);s1=c1.selectbox('Numerator 1',opts,key=f'qr1_{r.id}');s2=c2.selectbox('Numerator 2',opts,key=f'qr2_{r.id}');s3=c3.selectbox('Numerator 3',opts,key=f'qr3_{r.id}');s4=c4.selectbox('Numerator 4',opts,key=f'qr4_{r.id}')
@@ -606,7 +606,13 @@ with t1:
                     pv=[s if s!='—' else r'\square' for s in [s1,s2,s3,s4,den]];st.latex(rf"\frac{{({pv[0]})({pv[1]})-({pv[2]})({pv[3]})}}{{({pv[4]})^2}}")
                     ready=all(x!='—' for x in [s1,s2,s3,s4,den])
                     if st.button('✓ Check Rule Builder',type='primary',use_container_width=True,disabled=not ready):
-                        vals=[s1,s2,s3,s4,den];correct_now=(vals==payload['answer']);response_desc=' '.join(vals);objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
+                        vals=[s1,s2,s3,s4,den]
+                        # Quotient rule subtraction order matters, but multiplication order inside
+                        # each numerator product does not: gf' == f'g and fg' == g'f.
+                        first_product=frozenset((s1,s2))
+                        second_product=frozenset((s3,s4))
+                        correct_now=(first_product==frozenset(('g',"f'")) and second_product==frozenset(('f',"g'")) and den=='g')
+                        response_desc=' '.join(vals);objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
                 elif kind in {'power','chain'}:
                     a1,a2=st.columns(2);coef=a1.number_input('Coefficient',step=1,value=None);exp=a2.number_input('New exponent',step=1,value=None)
                     if st.button('✓ Check Interactive Answer',type='primary',use_container_width=True,disabled=coef is None or exp is None):

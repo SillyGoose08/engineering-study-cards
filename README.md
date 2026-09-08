@@ -30,3 +30,9 @@ streamlit run app.py
 ## Cross-product visual builder + Skip
 - Cross-product interactive questions now show the full i/j/k determinant, the +/−/+ expansion, and the exact two products used for each component.
 - Added **Skip — Mark Needs Work** in Interactive Practice. A skipped card is recorded as a weakness and automatically queued for a spaced review after 3–5 other questions; it does not count as a submitted quiz answer.
+
+## Rule-builder equivalence update
+- Product rule now accepts any mathematically equivalent ordering of the two factors and either order of the two added product terms.
+- Quotient rule now accepts either multiplication order inside each numerator product (for example `f'g` or `gf'`) while correctly preserving the subtraction order and denominator `g^2`.
+
+- Cross product interactive practice now uses compact numeric fill-in rows instead of dropdown builders.
