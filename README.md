@@ -74,3 +74,9 @@ Replaced tuple-based natural sort keys with string-only zero-padded keys for com
 - Each question is previewed in its study presentation format.
 - Every card has a one-click Add / Added button for the custom quiz builder.
 - Filters and search still work, and the custom quiz can be launched from the top or bottom of the browser.
+
+## Exam 1 calculation practice
+- Added 10 numerical dot-product calculation questions to §12.3.
+- Added 10 numerical cross-product calculation questions to §12.4.
+- Each has controlled plausible answer choices and calculation-specific wrong-answer explanations.
+- These appear automatically under Calc 3 — Exam 1 and in the scrollable Question Browser.
