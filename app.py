@@ -553,40 +553,122 @@ def option_markup(raw):
     return out
 
 def objective_choices(r, exam, subject, topic):
-    """Return stored MC options or build a reasonable same-topic set for recognition cards."""
-    if pd.notna(r.get('choices',None)) and str(r.get('choices','')).strip():
-        return str(r['choices']).split('|||')
+    """Return sensible, stable MC options. Prefer curated concept families over random deck answers."""
+    stored=r.get('choices',None)
+    if pd.notna(stored) and str(stored).strip():
+        return str(stored).split('|||')
+
     correct=str(r.back).strip()
+    ckey=normalize_answer(correct)
+    low=correct.lower().strip()
+    qlow=str(r.front).lower()
+
+    # Curated concept families. These produce plausible distractors instead of unrelated answers.
+    families = [
+        # Quadric / 3D shape recognition
+        ['Sphere','Ellipsoid','Elliptic paraboloid','Hyperboloid of one sheet'],
+        ['Sphere','Ellipsoid','Cylinder','Cone'],
+        ['Circle','Sphere','Ellipsoid','Cylinder'],
+        # Vector-output recognition
+        ['A scalar','A vector','An angle','A point'],
+        ['Dot product','Cross product','Scalar triple product','Projection'],
+        ['Parallel','Perpendicular','Skew','Intersecting'],
+        ['They are parallel','They are perpendicular','They have equal magnitude','Their dot product is zero'],
+        # Lines / planes
+        ['Point + direction vector','Point + normal vector','Two points only','A scalar equation only'],
+        ['Intersecting','Parallel','Skew','Coincident'],
+        # Calculus method recognition
+        ['u-substitution','Integration by parts','Partial fractions','Trigonometric substitution'],
+        ['Product rule','Quotient rule','Chain rule','Power rule'],
+        ['Derivative','Integral','Limit','Series'],
+        # Multivariable / vector calculus
+        ['Gradient','Divergence','Curl','Laplacian'],
+        ["Green's theorem","Stokes' theorem","Divergence theorem","Fundamental theorem for line integrals"],
+        ['Polar coordinates','Cylindrical coordinates','Spherical coordinates','Cartesian coordinates'],
+        # DE recognition
+        ['Separation of variables','Integrating factor','Characteristic equation','Undetermined coefficients'],
+        ['Stable','Unstable','Semistable','Not an equilibrium'],
+    ]
+
+    # Match by correct answer first.
+    for fam in families:
+        norm=[normalize_answer(x) for x in fam]
+        if ckey in norm:
+            opts=list(fam)
+            random.shuffle(opts)
+            return opts
+
+    # Question-specific concept cues.
+    if 'unequal coefficients' in qlow and any(v in qlow for v in ['x', 'y', 'z']):
+        opts=['Sphere','Ellipsoid','Cylinder','Cone']
+        random.shuffle(opts); return opts
+    if 'cross product' in qlow and 'produce' in qlow:
+        opts=['A vector','A scalar','An angle','A derivative']
+        random.shuffle(opts); return opts
+    if 'dot product' in qlow and ('produce' in qlow or 'result' in qlow):
+        opts=['A scalar','A vector','A plane','A curve']
+        random.shuffle(opts); return opts
+    if 'critical number' in qlow:
+        opts=[
+            "Find where f'(x)=0 or f'(x) does not exist",
+            "Find where f(x)=0",
+            "Find where f''(x)=0 only",
+            "Find where f(x) is undefined"
+        ]
+        random.shuffle(opts); return opts
+    if 'intersection point of two parametric lines' in qlow:
+        opts=[
+            'Set corresponding coordinates equal, solve the parameters, then substitute back',
+            'Take the dot product of the two direction vectors',
+            'Take the cross product of the two position vectors',
+            'Differentiate both line equations and set the derivatives equal'
+        ]
+        random.shuffle(opts); return opts
+    if 'polar coordinates' in qlow and 'x^2+y^2' in qlow.replace(' ',''):
+        opts=['r^2','r','theta^2','x^2-y^2']
+        random.shuffle(opts); return opts
+
+    # Fallback: choose answers from the same topic, but only those with similar "answer shape".
     d=apply_exam_filter(stats(),exam)
-    # Prefer distractors from the same topic, then same subject, then current exam.
-    pools=[]
     same_topic=d[(d.topic==r.topic) & (d.id!=r.id)]
-    same_subject=d[(d.subject==r.subject) & (d.id!=r.id)]
-    pools=[same_topic,same_subject,d[d.id!=r.id]]
+
+    def answer_kind(s):
+        s=str(s).strip()
+        sl=s.lower()
+        if re.search(r'[=^/<>]|sqrt|sin|cos|tan|ln|\d',s,re.I): return 'math'
+        words=re.findall(r"[A-Za-z]+",s)
+        if len(words)<=3: return 'short_prose'
+        return 'long_prose'
+
+    kind=answer_kind(correct)
+    candidates=[]
+    for ans in same_topic.back.astype(str).tolist():
+        if normalize_answer(ans)==ckey: continue
+        if answer_kind(ans)==kind:
+            candidates.append(ans)
+
+    # If we still do not have enough plausible same-topic distractors,
+    # use generic distractors that match the response type rather than unrelated course material.
+    generic_by_kind={
+        'math':['0','1','-1','None of these'],
+        'short_prose':['A scalar','A vector','None of these','Cannot be determined'],
+        'long_prose':['None of these','Cannot be determined from the given information',
+                      'Use a different operation first','The statement is not generally true']
+    }
+
+    seen={ckey}
     distractors=[]
-    seen={normalize_answer(correct)}
-    for pool in pools:
-        if pool.empty: continue
-        # Weak/randomized candidates keep options varied between sessions.
-        for ans in pool.sample(frac=1).back.astype(str).tolist():
-            key=normalize_answer(ans)
-            if not key or key in seen: continue
-            # Keep prose with prose and formula-like answers with formula-like answers when possible.
-            correct_math=bool(re.search(r'[=^/<>]|sqrt|sin|cos|tan|ln|\d',correct,re.I))
-            ans_math=bool(re.search(r'[=^/<>]|sqrt|sin|cos|tan|ln|\d',ans,re.I))
-            if len(distractors)<2 and correct_math!=ans_math:
-                continue
-            distractors.append(ans); seen.add(key)
-            if len(distractors)>=3: break
-        if len(distractors)>=3: break
-    # Safe fallbacks if a narrow filter does not provide enough distinct answers.
-    fallbacks=['0','1','A scalar','A vector','Dot product','Cross product','None of these']
-    for ans in fallbacks:
-        if len(distractors)>=3: break
+    for ans in candidates + generic_by_kind[kind]:
         key=normalize_answer(ans)
-        if key not in seen:
-            distractors.append(ans); seen.add(key)
+        if not key or key in seen: continue
+        distractors.append(ans); seen.add(key)
+        if len(distractors)>=3: break
+
     choices=[correct]+distractors[:3]
+    while len(choices)<4:
+        filler=f'Choice {len(choices)+1}'
+        if normalize_answer(filler) not in seen:
+            choices.append(filler)
     random.shuffle(choices)
     return choices
 
@@ -594,7 +676,7 @@ def elapsed(s):
     t=datetime.fromisoformat(s);q=max(0,int((datetime.now(timezone.utc)-t).total_seconds()));return f'{q//60}:{q%60:02d}'
 
 init()
-for k,v in {'card_id':None,'show_answer':False,'show_hint':False,'sig':None,'session_start':now(),'session_seen':0,'session_seen_ids':[],'target':12,'last_card':None,'mc_choice':None,'answer_style':'Flashcards','session_correct':0,'session_quiz_answered':0,'perfect_streak':0,'fill_value':''}.items():
+for k,v in {'card_id':None,'show_answer':False,'show_hint':False,'sig':None,'session_start':now(),'session_seen':0,'session_seen_ids':[],'target':12,'last_card':None,'mc_choice':None,'mc_options':None,'mc_options_card':None,'answer_style':'Flashcards','session_correct':0,'session_quiz_answered':0,'perfect_streak':0,'fill_value':''}.items():
     if k not in st.session_state:st.session_state[k]=v
 
 with st.sidebar:
@@ -613,7 +695,7 @@ with st.sidebar:
     subjects=['All']+sorted(cd.subject.unique(), key=natural_sort_key);subject=st.selectbox('Subject',subjects)
     fd=cd if subject=='All' else cd[cd.subject==subject];topics=['All']+sorted(fd.topic.unique(), key=natural_sort_key);topic=st.selectbox('Topic',topics)
     if st.button('▶ Start a New Session',type='primary',use_container_width=True):
-        st.session_state.session_start=now();st.session_state.session_seen=0;st.session_state.session_seen_ids=[];st.session_state.session_correct=0;st.session_state.session_quiz_answered=0;st.session_state.perfect_streak=0;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.rerun()
+        st.session_state.session_start=now();st.session_state.session_seen=0;st.session_state.session_seen_ids=[];st.session_state.session_correct=0;st.session_state.session_quiz_answered=0;st.session_state.perfect_streak=0;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.mc_options=None;st.session_state.mc_options_card=None;st.session_state.fill_value='';st.rerun()
     st.caption('Weakest First automatically prioritizes the cards you miss most often.')
     st.markdown(f'<div class="record-card"><div class="record-sub">🏆 PERFECT STREAK RECORD</div><div class="record-num">{get_best_quiz_streak()}</div><div class="record-sub">objective answers correct in a row</div></div>',unsafe_allow_html=True)
     st.markdown('<div class="quote">“A little progress every day adds up to big results.”</div>',unsafe_allow_html=True)
@@ -657,7 +739,7 @@ with t1:
 
             def advance(result,conf,ans_mode):
                 record(r.id,result,conf,ans_mode)
-                st.session_state.last_card=int(r.id);st.session_state.session_seen_ids=list(dict.fromkeys(st.session_state.session_seen_ids+[int(r.id)]));st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.session_state.session_seen+=1;st.rerun()
+                st.session_state.last_card=int(r.id);st.session_state.session_seen_ids=list(dict.fromkeys(st.session_state.session_seen_ids+[int(r.id)]));st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.mc_options=None;st.session_state.mc_options_card=None;st.session_state.fill_value='';st.session_state.session_seen+=1;st.rerun()
 
             # FLASHCARD MODE — self-rated, no objective streak scoring.
             if answer_style=='Flashcards':
@@ -713,7 +795,11 @@ with t1:
                     st.markdown(f'<div class="hint">💡 {hint}</div>',unsafe_allow_html=True)
 
                 if render_mc:
-                    choices=objective_choices(r,exam,subject,topic);letters=['A','B','C','D'][:len(choices)]
+                    if st.session_state.mc_options_card != int(r.id) or not st.session_state.mc_options:
+                        st.session_state.mc_options=objective_choices(r,exam,subject,topic)
+                        st.session_state.mc_options_card=int(r.id)
+                    choices=list(st.session_state.mc_options)
+                    letters=['A','B','C','D'][:len(choices)]
                     st.markdown('#### Choose the best answer')
                     for i,ch in enumerate(choices):
                         st.markdown(

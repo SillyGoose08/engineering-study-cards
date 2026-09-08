@@ -29,3 +29,8 @@ Fixed the math-notation replacement crash caused by Python interpreting LaTeX ba
 - Prose answer choices keep normal spacing while math fragments render inline.
 - Raw powers such as `x^2` in prose questions now display as superscript math.
 - Natural-language integral prompts now render the integral itself properly.
+
+## Smart distractor + stable answer-bank fix
+- Generated multiple-choice distractors now come from curated concept families, so answers are plausible for the question.
+- Quadric-surface questions now compare related surfaces instead of unrelated vector/calculus terms.
+- Generated answer banks are frozen for the current card and no longer change when a radio choice reruns Streamlit.
