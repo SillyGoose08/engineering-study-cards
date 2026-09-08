@@ -36,3 +36,7 @@ streamlit run app.py
 - Quotient rule now accepts either multiplication order inside each numerator product (for example `f'g` or `gf'`) while correctly preserving the subtraction order and denominator `g^2`.
 
 - Cross product interactive practice now uses compact numeric fill-in rows instead of dropdown builders.
+
+
+## Exam scope + mobile update
+Responsive iPad/iPhone layouts and scoped practice presets for Calc 3 Sections 12 and 13. Custom topic and exact-question selection keep adaptive retrieval inside the chosen exam scope.

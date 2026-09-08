@@ -47,6 +47,23 @@ button[kind="primary"]{background:linear-gradient(90deg,#5368ff,#762cff)!importa
 
 /* Interactive practice builders */
 .interactive-panel{background:linear-gradient(180deg,#0d1f34,#081725);border:1px solid #294665;border-radius:16px;padding:18px 20px;margin:12px 0 14px}.interactive-title{font-size:18px;font-weight:850;color:#eef5ff;margin-bottom:5px}.interactive-sub{font-size:12px;color:var(--muted);margin-bottom:14px}.formula-builder{background:#f7f9fd;color:#10203c;border:1px solid #d5deec;border-radius:14px;padding:16px 18px;margin:10px 0 14px;text-align:center}.formula-builder .katex{font-size:1.35em}.vector-chip{display:inline-block;background:#e7e0ff;color:#563cd6;border-radius:10px;padding:7px 10px;margin:3px 5px 3px 0;font-weight:800}.interactive-feedback{border-radius:13px;padding:13px 15px;margin:12px 0}.interactive-feedback.ok{border:1px solid #2bd47f;background:rgba(43,212,127,.08)}.interactive-feedback.no{border:1px solid #ff5a6f;background:rgba(255,90,111,.08)}
+/* Responsive study layout: tablet + phone */
+@media(max-width:1100px){
+ .block-container{padding-left:1rem!important;padding-right:1rem!important;max-width:100%!important}
+ .hero{min-height:112px;padding:20px 22px}.hero h1{font-size:28px}
+ .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.mcard{min-height:94px;padding:13px 14px}.mval{font-size:24px}
+ .flash,.st-key-flashcard{padding:22px!important;min-height:240px}.question{font-size:23px!important}
+}
+@media(max-width:700px){
+ .block-container{padding:.55rem .65rem 2rem!important}
+ [data-testid="stSidebar"]{min-width:82vw!important;max-width:88vw!important}
+ .hero{display:none}.brand h2{font-size:20px}.brain{font-size:28px}
+ .metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-bottom:10px}.mcard{padding:10px 11px;min-height:82px}.mlabel{font-size:10px}.mval{font-size:20px;margin-top:5px}.mfoot{display:none}
+ .session-banner{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:6px 0 10px}.session-stat{padding:9px 10px}.session-stat strong{font-size:17px}
+ .flash,.st-key-flashcard{border-radius:15px!important;padding:16px!important;min-height:205px}.question{font-size:20px!important;line-height:1.28!important;margin-top:18px}.count{float:none;display:block;margin-top:8px}
+ .stButton>button{min-height:48px;font-size:15px}.choice-grid{grid-template-columns:1fr}
+ .stTabs [data-baseweb="tab"]{padding-left:.55rem!important;padding-right:.55rem!important;font-size:12px}
+}
 </style>''',unsafe_allow_html=True)
 
 def now(): return datetime.now(timezone.utc).isoformat()
@@ -188,18 +205,31 @@ def answers_match(user,expected):
     except:
         return False
 
-def eligible_cards(subject,topic,answer_style='Flashcards'):
+CALC3_SECTION_TOPICS={
+    '12 — Vectors & Geometry of Space':['Dot product','Cross product','Planes','Line intersection'],
+    '13 — Vector Functions':['Vector functions','Vector integrals','Particle motion','Integration patterns'],
+}
+
+def scope_topics_from_preset(preset):
+    if preset=='Exam: Sections 12 & 13':
+        return CALC3_SECTION_TOPICS['12 — Vectors & Geometry of Space']+CALC3_SECTION_TOPICS['13 — Vector Functions']
+    if preset in CALC3_SECTION_TOPICS:return CALC3_SECTION_TOPICS[preset]
+    return []
+
+def eligible_cards(subject,topic,answer_style='Flashcards',topics=None,card_ids=None):
     d=stats()
     if subject!='All': d=d[d.subject==subject]
-    if topic!='All': d=d[d.topic==topic]
+    if topics: d=d[d.topic.isin(topics)]
+    elif topic!='All': d=d[d.topic==topic]
+    if card_ids: d=d[d.id.isin([int(x) for x in card_ids])]
     if answer_style=='Multiple Choice': d=d[d.choices.notna() & (d.choices.astype(str).str.strip()!='')]
     elif answer_style=='Fill in Blank': d=d[d.apply(is_fillable,axis=1)]
     elif answer_style=='Mixed Quiz': d=d[(d.choices.notna() & (d.choices.astype(str).str.strip()!='')) | d.apply(is_fillable,axis=1)]
     elif answer_style=='Interactive Practice': d=d[d.card_type.astype(str).eq('Interactive')]
     return d
 
-def pick(mode,subject,topic,answer_style='Flashcards',exclude=None,exclude_topic=None):
-    d=eligible_cards(subject,topic,answer_style)
+def pick(mode,subject,topic,answer_style='Flashcards',exclude=None,exclude_topic=None,topics=None,card_ids=None):
+    d=eligible_cards(subject,topic,answer_style,topics,card_ids)
     if exclude and len(d)>1: d=d[d.id!=exclude]
     if exclude_topic and len(d)>1:
         alt=d[d.topic!=exclude_topic]
@@ -213,8 +243,8 @@ def pick(mode,subject,topic,answer_style='Flashcards',exclude=None,exclude_topic
         return p.sample(1,weights=[max(float(x),1) for x in p.weakness]).iloc[0]
     return d.sample(1).iloc[0]
 
-def concept_variant(card_id,subject,topic,answer_style):
-    d=eligible_cards(subject,topic,answer_style)
+def concept_variant(card_id,subject,topic,answer_style,topics=None,card_ids=None):
+    d=eligible_cards(subject,topic,answer_style,topics,card_ids)
     d=d[d.id!=int(card_id)]
     if d.empty:return int(card_id)
     d=d.sort_values(['attempts','weakness'],ascending=[True,False]).head(min(6,len(d)))
@@ -391,14 +421,31 @@ with st.sidebar:
     st.session_state.answer_style=answer_style
     mode=st.radio('Card order',['Weakest First','Missed Only','Random'])
     cd=cards_df();subjects=['All']+sorted(cd.subject.unique());subject=st.selectbox('Subject',subjects)
-    fd=cd if subject=='All' else cd[cd.subject==subject];topics=['All']+sorted(fd.topic.unique());topic=st.selectbox('Topic',topics)
+    st.markdown('#### 🎯 Study Scope')
+    scope_options=['All material','Exam: Sections 12 & 13','12 — Vectors & Geometry of Space','13 — Vector Functions','Custom topics','Specific questions']
+    scope_mode=st.selectbox('Practice set',scope_options,index=1 if subject=='Calc 3' else 0,help='Limit the adaptive engine to only the material you want to study.')
+    fd=cd if subject=='All' else cd[cd.subject==subject]
+    selected_topics=[];selected_card_ids=[];topic='All'
+    if scope_mode in CALC3_SECTION_TOPICS or scope_mode=='Exam: Sections 12 & 13':
+        selected_topics=[t for t in scope_topics_from_preset(scope_mode) if t in set(fd.topic)]
+        st.caption('Included: '+(', '.join(selected_topics) if selected_topics else 'No matching cards yet'))
+    elif scope_mode=='Custom topics':
+        selected_topics=st.multiselect('Choose topics',sorted(fd.topic.unique()),default=[])
+    elif scope_mode=='Specific questions':
+        qdf=fd.copy();qdf['label']=qdf.apply(lambda r:f"{r.topic} · {str(r.front)[:62]}",axis=1)
+        labels=st.multiselect('Choose exact questions',qdf.label.tolist(),default=[])
+        selected_card_ids=qdf[qdf.label.isin(labels)].id.astype(int).tolist()
+    else:
+        topic=st.selectbox('Topic',['All']+sorted(fd.topic.unique()))
+    if scope_mode!='All material':
+        st.caption('Adaptive Weakest First, spaced reviews, and mastery scoring stay inside this study scope.')
     if st.button('▶ Start a New Session',type='primary',use_container_width=True):
         st.session_state.session_start=now();st.session_state.session_seen=0;st.session_state.session_correct=0;st.session_state.session_quiz_answered=0;st.session_state.perfect_streak=0;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.session_state.review_queue=[];st.session_state.current_review_stage=0;st.session_state.last_topic=None;st.session_state.adaptive_note='';st.session_state.interactive_payload=None;st.session_state.interactive_payload_card=None;st.session_state.interactive_result=None;st.rerun()
     st.caption('Adaptive spacing is on: misses return after a short delay, then a concept variation returns later. Topics are interleaved when possible.')
     st.markdown(f'<div class="record-card"><div class="record-sub">🏆 PERFECT STREAK RECORD</div><div class="record-num">{get_best_quiz_streak()}</div><div class="record-sub">objective answers correct in a row</div></div>',unsafe_allow_html=True)
     st.markdown('<div class="quote">“A little progress every day adds up to big results.”</div>',unsafe_allow_html=True)
 
-sig=(mode,subject,topic,answer_style)
+sig=(mode,subject,topic,answer_style,scope_mode,tuple(selected_topics),tuple(selected_card_ids))
 if sig!=st.session_state.sig:st.session_state.sig=sig;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False
 
 st.markdown('<div class="brand"><div class="brain">🧠</div><div><h2>Engineering Study Cards</h2><div class="sub">Study smarter. Master faster.</div></div></div>',unsafe_allow_html=True)
@@ -408,10 +455,15 @@ with t1:
     st.markdown('<div class="hero"><div class="badge">🎯 Same Effort.<br>Bigger Results.</div><h1>Engineering Study Cards</h1><p>Adaptive flashcards that focus on what you need most.</p></div>',unsafe_allow_html=True)
     d=stats();sc=d.copy()
     if subject!='All':sc=sc[sc.subject==subject]
-    if topic!='All':sc=sc[sc.topic==topic]
+    if selected_topics:sc=sc[sc.topic.isin(selected_topics)]
+    elif selected_card_ids:sc=sc[sc.id.isin(selected_card_ids)]
+    elif topic!='All':sc=sc[sc.topic==topic]
     a=int(sc.attempts.sum()) if len(sc) else 0;c=int(sc.correct.sum()) if len(sc) else 0;ac=100*c/a if a else 0;w=int((sc.weakness>=60).sum()) if len(sc) else 0;m=float(sc.mastery.mean()) if len(sc) else 0
     st.markdown(f'<div class="metrics"><div class="mcard"><div class="mlabel">📗 Total Attempts</div><div class="mval">{a}</div><div class="mfoot">Every answer improves your model</div></div><div class="mcard"><div class="mlabel">🎯 Accuracy</div><div class="mval">{ac:.0f}%</div><div class="mfoot">Correct across this filter</div></div><div class="mcard"><div class="mlabel">⚠️ Weak Cards</div><div class="mval">{w}</div><div class="mfoot">Priority score ≥ 60</div></div><div class="mcard"><div class="mlabel">🏆 Best Perfect Streak</div><div class="mval perfect">{get_best_quiz_streak()}</div><div class="mfoot">MCQ + fill-in + interactive</div></div></div>',unsafe_allow_html=True)
     st.markdown(f'<div class="session-banner"><div class="session-stat"><strong>{answer_style}</strong><span>Current answer style</span></div><div class="session-stat"><strong>{st.session_state.session_correct}/{st.session_state.session_quiz_answered}</strong><span>Quiz score this session</span></div><div class="session-stat"><strong class="perfect">{st.session_state.perfect_streak} 🔥</strong><span>Current perfect streak</span></div><div class="session-stat"><strong>{len(st.session_state.review_queue)}</strong><span>Spaced reviews queued</span></div></div>',unsafe_allow_html=True)
+    if scope_mode!='All material':
+        readiness=float(sc.mastery.mean()) if len(sc) else 0
+        st.progress(readiness/100,text=f'Exam / custom scope readiness: {readiness:.0f}%')
 
     if st.session_state.card_id is None:
         due=[x for x in st.session_state.review_queue if int(x.get('due',9999))<=st.session_state.session_seen]
@@ -421,7 +473,7 @@ with t1:
             st.session_state.card_id=int(item['card_id']);st.session_state.current_review_stage=int(item.get('stage',1))
             st.session_state.adaptive_note='Scheduled review — retrieve it from memory before checking the answer.'
         else:
-            r=pick(mode,subject,topic,answer_style,st.session_state.last_card,st.session_state.last_topic)
+            r=pick(mode,subject,topic,answer_style,st.session_state.last_card,st.session_state.last_topic,selected_topics,selected_card_ids)
             if r is not None:
                 st.session_state.card_id=int(r.id);st.session_state.current_review_stage=0;st.session_state.adaptive_note=''
     cur=stats();cur=cur[cur.id==st.session_state.card_id]
@@ -453,7 +505,7 @@ with t1:
                     delay=random.randint(3,5)
                     st.session_state.review_queue.append({'card_id':int(r.id),'due':next_step+delay,'stage':max(1,stage+1)})
                 elif result=='Correct' and stage>0 and stage<3:
-                    vid=concept_variant(r.id,r.subject,r.topic,answer_style)
+                    vid=concept_variant(r.id,r.subject,r.topic,answer_style,selected_topics,selected_card_ids)
                     delay=random.randint(8,12)
                     st.session_state.review_queue.append({'card_id':int(vid),'due':next_step+delay,'stage':stage+1})
                 st.session_state.last_card=int(r.id);st.session_state.last_topic=str(r.topic);st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.session_state.current_review_stage=0;st.session_state.adaptive_note='';st.session_state.interactive_payload=None;st.session_state.interactive_payload_card=None;st.session_state.interactive_result=None;st.session_state.session_seen+=1;st.rerun()
