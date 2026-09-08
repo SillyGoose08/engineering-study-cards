@@ -209,6 +209,9 @@ def expr_latex(raw):
     """Convert the compact notation stored in the deck into readable LaTeX."""
     import re
     s=str(raw).strip()
+    # Normalize common Unicode math glyphs used in the deck before building LaTeX.
+    s=(s.replace('²','^2').replace('³','^3').replace('⁴','^4')
+         .replace('⁵','^5').replace('⁶','^6').replace('⁻','-'))
     # coordinate pairs / ordered pairs
     if re.fullmatch(r'\([^()]+,[^()]+\)',s):
         a,b=[x.strip() for x in s[1:-1].split(',',1)]
@@ -258,13 +261,24 @@ def question_markup(raw):
     if q.endswith('= ?') and not q.startswith(('Which','For','At','In')):
         lhs=q[:-3].strip()
         return 'latex',rf"{expr_latex(lhs)}=\ ?"
-    # mixed prose replacements
+    # Mixed prose with an embedded integral, e.g.
+    # "You see ∫ 1/(1+t²) dt. What antiderivative should you recognize?"
+    # Keep the sentence as prose but render the mathematical expression with KaTeX.
+    m=re.search(r'∫\s*(.+?)\s+d([A-Za-z])(?=[.?!,]|\s|$)',q)
+    if m:
+        integrand=m.group(1).strip()
+        var=m.group(2)
+        latex_integral=rf'\displaystyle \int {expr_latex(integrand)}\,d{var}'
+        q=q[:m.start()]+f'${latex_integral}$'+q[m.end():]
+
+    # Other mixed-prose replacements.
     q=q.replace('d/dx[(x^2+1)^5]',r'$\frac{d}{dx}\left[(x^2+1)^5\right]$')
     q=q.replace('[F(x)]_a^b',r'$\left[F(x)\right]_a^b$')
     q=q.replace('e^(-1)',r'$e^{-1}$').replace('e^(-x)',r'$e^{-x}$')
     q=q.replace('0° (0 rad)',r'$0^\circ\;(0\text{ rad})$')
     q=q.replace('90° (pi/2)',r'$90^\circ\;(\pi/2)$')
     q=q.replace('(cos theta, sin theta)',r'$(\cos\theta,\sin\theta)$')
+    q=re.sub(r'(?<![$\w])ln\s+([A-Za-z])',lambda m: rf'$\ln({m.group(1)})$',q)
     return 'md',q
 
 def option_markup(raw):
