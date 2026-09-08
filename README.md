@@ -11,3 +11,6 @@ This build expands the adaptive study deck to cover **Calculus Chapters 1–17**
 Cards emphasize **Recognition → Setup/Method → Calculation** so the app trains method selection as well as computation.
 
 Deploy by replacing `app.py`, `requirements.txt`, and `README.md` in the Streamlit repo root.
+
+## Visual graph matching
+Multiple-choice graph-to-equation practice covers circle, sphere, ellipsoid, helix, and twisted cubic in the relevant UNM Calc 3 Exam 1 sections.

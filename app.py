@@ -2,6 +2,8 @@ import html, sqlite3, random, re
 from datetime import datetime, timezone
 from pathlib import Path
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 import streamlit as st
 
 DB=Path('flashcards.db')
@@ -15,6 +17,24 @@ def natural_sort_key(value):
     import re
     return [int(part) if part.isdigit() else part.casefold()
             for part in re.split(r"(\d+)", str(value))]
+
+
+def render_shape_graph(shape_key):
+    fig=plt.figure(figsize=(6.2,4.6))
+    if shape_key=='circle':
+        ax=fig.add_subplot(111);t=np.linspace(0,2*np.pi,400);ax.plot(3*np.cos(t),3*np.sin(t),linewidth=2.6);ax.axhline(0,linewidth=.8,alpha=.45);ax.axvline(0,linewidth=.8,alpha=.45);ax.set_aspect('equal',adjustable='box');ax.set_xlim(-4,4);ax.set_ylim(-4,4);ax.set_xlabel('x');ax.set_ylabel('y');ax.grid(alpha=.18)
+    else:
+        ax=fig.add_subplot(111,projection='3d')
+        if shape_key=='sphere':
+            u=np.linspace(0,2*np.pi,64);v=np.linspace(0,np.pi,36);x=2*np.outer(np.cos(u),np.sin(v));y=2*np.outer(np.sin(u),np.sin(v));z=2*np.outer(np.ones_like(u),np.cos(v));ax.plot_surface(x,y,z,alpha=.58,linewidth=0);lim=2.6
+        elif shape_key=='ellipsoid':
+            u=np.linspace(0,2*np.pi,64);v=np.linspace(0,np.pi,36);x=3*np.outer(np.cos(u),np.sin(v));y=2*np.outer(np.sin(u),np.sin(v));z=np.outer(np.ones_like(u),np.cos(v));ax.plot_surface(x,y,z,alpha=.58,linewidth=0);lim=3.5
+        elif shape_key=='helix':
+            t=np.linspace(-2*np.pi,2*np.pi,500);ax.plot(np.cos(t),np.sin(t),t/np.pi,linewidth=3);lim=2.4
+        elif shape_key=='twisted_cubic':
+            t=np.linspace(-1.5,1.5,500);ax.plot(t,t**2,t**3,linewidth=3);lim=3.8
+        ax.set_xlabel('x');ax.set_ylabel('y');ax.set_zlabel('z');ax.set_box_aspect((1,1,1));ax.set_xlim(-lim,lim);ax.set_ylim(-lim,lim);ax.set_zlim(-lim,lim);ax.view_init(elev=22,azim=-58)
+    fig.tight_layout();st.pyplot(fig,use_container_width=False);plt.close(fig)
 
 st.set_page_config(page_title='Engineering Study Cards',page_icon='🧠',layout='wide',initial_sidebar_state='expanded')
 
@@ -208,6 +228,15 @@ def init():
         ('Calc 2 — Ch 11','11.10 Maclaurin Series','Recognition','What is the first question to ask when choosing a convergence test?','What structural pattern does the series have?','Look for geometric, p-series, alternating, factorial/exponential, or comparison patterns before calculating.',None),
     ]
     curriculum_cards = early_calc_cards + curriculum_cards
+    graph_match_cards=[
+        ('Calc 3 — Ch 12','12.1 3D Coordinates','Graph Match','GRAPH_MATCH|circle','x^2+y^2=9','Circle: only x and y are needed.',['x^2+y^2=9','x^2+y^2+z^2=9','x^2/9+y^2/4+z^2=1','r(t)=<cos(t),sin(t),t>']),
+        ('Calc 3 — Ch 12','12.1 3D Coordinates','Graph Match','GRAPH_MATCH|sphere','x^2+y^2+z^2=4','Sphere: x, y, and z are squared with equal scaling.',['x^2+y^2=4','x^2+y^2+z^2=4','x^2/9+y^2/4+z^2=1','r(t)=<t,t^2,t^3>']),
+        ('Calc 3 — Ch 12','12.6 Quadric Surfaces','Graph Match','GRAPH_MATCH|ellipsoid','x^2/9+y^2/4+z^2=1','Unequal denominators create unequal semi-axis lengths.',['x^2+y^2+z^2=1','x^2/9+y^2/4+z^2=1','x^2+y^2=9','r(t)=<cos(t),sin(t),t>']),
+        ('Calc 3 — Ch 13','13.1 Vector Functions','Graph Match','GRAPH_MATCH|helix','r(t)=<cos(t),sin(t),t/pi>','Circular x-y motion plus changing z creates a helix.',['r(t)=<cos(t),sin(t),t/pi>','r(t)=<t,t^2,t^3>','x^2+y^2+z^2=4','x^2+y^2=9']),
+        ('Calc 3 — Ch 13','13.1 Vector Functions','Graph Match','GRAPH_MATCH|twisted_cubic','r(t)=<t,t^2,t^3>','Coordinate powers 1, 2, and 3 create the twisted cubic.',['r(t)=<t,t^2,t^3>','r(t)=<cos(t),sin(t),t/pi>','x^2/9+y^2/4+z^2=1','x^2+y^2+z^2=4']),
+    ]
+    curriculum_cards.extend(graph_match_cards)
+
     for subject,top,ctype,front,back,hint,choices in curriculum_cards:
         if not c.execute('SELECT 1 FROM cards WHERE subject=? AND front=?',(subject,front)).fetchone():
             packed='|||'.join(choices) if choices else None
@@ -423,9 +452,16 @@ def question_markup(raw):
 
 def option_markup(raw):
     s=str(raw).strip()
-    # prose answers should stay prose
-    prose_markers=['rule','constant','upper bound','x-intercept','positive','negative','undefined','automatic']
-    if any(x in s.lower() for x in prose_markers) and not any(ch in s for ch in '^/=()'):
+    # Keep ordinary answer phrases as normal text so Markdown/LaTeX does not
+    # collapse spaces (for example, 'A vector' -> 'Avector'). Only send
+    # clearly mathematical expressions through the LaTeX formatter.
+    low=s.lower()
+    mathish=(
+        any(ch in s for ch in ['=', '^', '/', '<', '>', '√', '∫'])
+        or any(tok in low for tok in ['sqrt', 'pi', 'sin(', 'cos(', 'tan(', 'ln(', 'e^', 'r(t)', 'f(x)', 'g(x)'])
+        or bool(re.search(r'\b[xyzts]\s*[+*]\s*[xyzts0-9]', low))
+    )
+    if not mathish:
         return esc(s)
     return f'${expr_latex(s)}$'
 def elapsed(s):
@@ -536,7 +572,11 @@ with t1:
                 with st.container(key='flashcard'):
                     st.markdown(f'<span class="count">Card {idx} of {st.session_state.target} ☆</span><span class="pill">{esc(r.subject)}</span><span class="pill blue">{esc(r.topic)}</span>',unsafe_allow_html=True)
                     st.markdown('<div style="height:12px"></div>',unsafe_allow_html=True)
-                    if qkind=='latex': st.latex(qvalue)
+                    is_graph_match=str(r.front).startswith('GRAPH_MATCH|')
+                    if is_graph_match:
+                        st.markdown('### Match the equation to the graph')
+                        render_shape_graph(str(r.front).split('|',1)[1])
+                    elif qkind=='latex': st.latex(qvalue)
                     else: st.markdown(f'### {qvalue}')
                     st.markdown('<div class="rule"></div>',unsafe_allow_html=True)
                     st.markdown(f'<div class="hint">💡 {hint}</div>',unsafe_allow_html=True)
