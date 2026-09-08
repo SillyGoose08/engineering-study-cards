@@ -23,3 +23,9 @@ Mixed Quiz is now primarily multiple choice. Only short recall answers of roughl
 
 ## Regex hotfix
 Fixed the math-notation replacement crash caused by Python interpreting LaTeX backslashes such as `\pi` as regex replacement escapes.
+
+## Formatting readability fix
+- Long answer choices are stacked vertically instead of squeezed into two columns.
+- Prose answer choices keep normal spacing while math fragments render inline.
+- Raw powers such as `x^2` in prose questions now display as superscript math.
+- Natural-language integral prompts now render the integral itself properly.

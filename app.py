@@ -456,47 +456,102 @@ def expr_latex(raw):
     return s
 
 def question_markup(raw):
-    """Return (kind, value): kind is 'latex' for display math or 'md' for mixed prose."""
+    """Render math cleanly inside prose without exposing raw x^2-style notation."""
     import re
     q=str(raw).strip()
-    # derivative questions
+
+    # Pure derivative questions
     m=re.fullmatch(r'd/dx\((.+)\)\s*=\s*\?',q)
     if m:return 'latex',rf"\frac{{d}}{{dx}}\left({expr_latex(m.group(1))}\right)=\ ?"
     m=re.fullmatch(r'd/dx\[(.+)\]\s*=\s*\?',q)
     if m:return 'latex',rf"\frac{{d}}{{dx}}\left[{expr_latex(m.group(1))}\right]=\ ?"
-    # integrals
+
+    # Pure integral questions
     m=re.fullmatch(r'∫\s*(.+)\s+d([A-Za-z])\s*=\s*\?',q)
     if m:return 'latex',rf"\int {expr_latex(m.group(1))}\,d{m.group(2)}=\ ?"
-    # simple equation questions
+
+    # Simple equation questions
     if q.endswith('= ?') and not q.startswith(('Which','For','At','In')):
         lhs=q[:-3].strip()
         return 'latex',rf"{expr_latex(lhs)}=\ ?"
-    # mixed prose replacements
+
+    # Natural-language integral prompt:
+    # "For integral x*cos(x^2) dx, what is a natural u choice?"
+    m=re.search(r'\bintegral\s+(.+?)\s+d([A-Za-z])(?=,|\?|$)',q,re.I)
+    if m:
+        integrand=m.group(1).strip()
+        var=m.group(2)
+        q=q[:m.start()] + rf"integral $\int {expr_latex(integrand)}\,d{var}$" + q[m.end():]
+
+    # Known mixed-prose forms
     q=q.replace('d/dx[(x^2+1)^5]',r'$\frac{d}{dx}\left[(x^2+1)^5\right]$')
     q=q.replace('[F(x)]_a^b',r'$\left[F(x)\right]_a^b$')
     q=q.replace('e^(-1)',r'$e^{-1}$').replace('e^(-x)',r'$e^{-x}$')
     q=q.replace('0° (0 rad)',r'$0^\circ\;(0\text{ rad})$')
     q=q.replace('90° (pi/2)',r'$90^\circ\;(\pi/2)$')
     q=q.replace('(cos theta, sin theta)',r'$(\cos\theta,\sin\theta)$')
-    # Render common named mathematical symbols as notation in prose questions.
-    q=re.sub(r'(?<![A-Za-z\\])theta(?![A-Za-z])',lambda m:r'$\theta$',q)
-    q=re.sub(r'(?<![A-Za-z\\])pi(?![A-Za-z])',lambda m:r'$\pi$',q)
-    return 'md',q
+
+    # Named symbols
+    q=re.sub(r'(?<![A-Za-z\\$])theta(?![A-Za-z$])',lambda m:r'$\theta$',q,flags=re.I)
+    q=re.sub(r'(?<![A-Za-z\\$])pi(?![A-Za-z$])',lambda m:r'$\pi$',q,flags=re.I)
+
+    # Convert compact powers in prose, e.g. x^2 -> $x^{2}$.
+    parts=re.split(r'(\$[^$]*\$)',q)
+    for i in range(0,len(parts),2):
+        parts[i]=re.sub(
+            r'(?<![A-Za-z0-9_])([A-Za-z])\^(-?\d+)(?![A-Za-z0-9_])',
+            lambda m: rf'${m.group(1)}^{{{m.group(2)}}}$',
+            parts[i]
+        )
+    return 'md',''.join(parts)
 
 def option_markup(raw):
+    """Keep prose readable and format only the mathematical parts."""
+    import re
     s=str(raw).strip()
-    # Keep ordinary answer phrases as normal text so Markdown/LaTeX does not
-    # collapse spaces (for example, 'A vector' -> 'Avector'). Only send
-    # clearly mathematical expressions through the LaTeX formatter.
-    low=s.lower()
-    mathish=(
-        any(ch in s for ch in ['=', '^', '/', '<', '>', '√', '∫'])
-        or any(tok in low for tok in ['sqrt', 'pi', 'sin(', 'cos(', 'tan(', 'ln(', 'e^', 'r(t)', 'f(x)', 'g(x)'])
-        or bool(re.search(r'\b[xyzts]\s*[+*]\s*[xyzts0-9]', low))
+
+    # Explicitly prose-like answers should stay as prose.
+    prose_like = bool(re.search(r'\s', s)) and not (
+        s.startswith(('r(t)=','f(x)=','g(x)='))
+        or re.fullmatch(r'[\sA-Za-z0-9_+\-*/^=<>|().,]+',s) and '=' in s and len(s.split()) <= 4
     )
-    if not mathish:
+
+    if not prose_like:
+        # Pure/small symbolic answer
+        mathish=(
+            any(ch in s for ch in ['=', '^', '/', '<', '>', '√', '∫', '·'])
+            or any(tok in s.lower() for tok in ['sqrt', 'pi', 'theta', 'sin(', 'cos(', 'tan(', 'ln(', 'e^', 'r(t)', 'f(x)', 'g(x)'])
+        )
+        if mathish:
+            return f'${expr_latex(s)}$'
         return esc(s)
-    return f'${expr_latex(s)}$'
+
+    # Prose: preserve word spacing and only convert obvious math snippets.
+    out=esc(s)
+
+    # u = ... expressions
+    out=re.sub(r'\bu\s*=\s*([A-Za-z0-9_+\-*/^().]+)',
+               lambda m: rf'$u={expr_latex(m.group(1))}$', out)
+
+    # du = ... expressions
+    out=re.sub(r'\bdu\s*=\s*([A-Za-z0-9_+\-*/^().]+)\s*d([A-Za-z])',
+               lambda m: rf'$du={expr_latex(m.group(1))}\,d{m.group(2)}$', out)
+
+    # Common dot-product formula embedded in prose
+    out=re.sub(
+        r'([A-Za-z])·([A-Za-z])\s*=\s*\|([A-Za-z])\|\|([A-Za-z])\|cos(?:theta|θ)',
+        lambda m: rf'${m.group(1)}\cdot {m.group(2)}=|{m.group(3)}||{m.group(4)}|\cos\theta$',
+        out, flags=re.I
+    )
+
+    # Compact powers in prose
+    out=re.sub(
+        r'(?<![A-Za-z0-9_])([A-Za-z])\^(-?\d+)(?![A-Za-z0-9_])',
+        lambda m: rf'${m.group(1)}^{{{m.group(2)}}}$',
+        out
+    )
+    return out
+
 def objective_choices(r, exam, subject, topic):
     """Return stored MC options or build a reasonable same-topic set for recognition cards."""
     if pd.notna(r.get('choices',None)) and str(r.get('choices','')).strip():
@@ -660,9 +715,11 @@ with t1:
                 if render_mc:
                     choices=objective_choices(r,exam,subject,topic);letters=['A','B','C','D'][:len(choices)]
                     st.markdown('#### Choose the best answer')
-                    cols=st.columns(2)
                     for i,ch in enumerate(choices):
-                        with cols[i%2]: st.markdown(f'**{letters[i]}.** &nbsp; {option_markup(ch)}')
+                        st.markdown(
+                            f'<div style="padding:0.45rem 0 0.55rem 0; font-size:1.05rem;"><strong>{letters[i]}.</strong>&nbsp;&nbsp;{option_markup(ch)}</div>',
+                            unsafe_allow_html=True
+                        )
                     selected_letter=st.radio('Select A, B, C, or D',letters,index=None,key=f"mcq_{int(r.id)}",horizontal=True,label_visibility='collapsed')
                     choice=choices[letters.index(selected_letter)] if selected_letter in letters else None
                     x,y=st.columns(2)
