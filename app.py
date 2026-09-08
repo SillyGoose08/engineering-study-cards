@@ -338,6 +338,11 @@ def init():
                 (new_front,new_hint,int(row['id']))
             )
 
+
+    # Dedicated Fall 2026 MATH 2531 in-class quiz bank.
+    in_class_quiz_cards=[('Calc 3 — In-Class Quizzes', 'Quiz 1 — 12.1–12.3', 'Calculation', 'Find the center and radius of the sphere $x^2+y^2+z^2=6x-4y-10z$.', 'Center $(3,-2,-5)$, radius $\\sqrt{38}$', 'Complete the square separately in $x$, $y$, and $z$.', ['Center $(3,-2,-5)$, radius $\\sqrt{38}$', 'Center $(-3,2,5)$, radius $38$', 'Center $(3,2,5)$, radius $\\sqrt{38}$', 'Center $(6,-4,-10)$, radius $\\sqrt{6}$']), ('Calc 3 — In-Class Quizzes', 'Quiz 1 — 12.1–12.3', 'Calculation', 'Find a unit vector in the direction of $-5\\mathbf i+3\\mathbf j-\\mathbf k$.', '$\\left\\langle-\\frac5{\\sqrt{35}},\\frac3{\\sqrt{35}},-\\frac1{\\sqrt{35}}\\right\\rangle$', 'Find the magnitude $\\sqrt{35}$, then divide every component by it.', ['$\\left\\langle-\\frac5{\\sqrt{35}},\\frac3{\\sqrt{35}},-\\frac1{\\sqrt{35}}\\right\\rangle$', '$\\langle-5,3,-1\\rangle$', '$\\left\\langle\\frac5{\\sqrt{35}},-\\frac3{\\sqrt{35}},\\frac1{\\sqrt{35}}\\right\\rangle$', '$\\left\\langle-\\frac5{35},\\frac3{35},-\\frac1{35}\\right\\rangle$']), ('Calc 3 — In-Class Quizzes', 'Quiz 1 — 12.1–12.3', 'Calculation', 'Let $\\mathbf v=\\langle1,-5,6\\rangle$ and $\\mathbf w=4\\mathbf i-2\\mathbf j+5\\mathbf k$. Find an expression for the angle between them.', '$\\theta=\\cos^{-1}\\left(\\frac{44}{\\sqrt{62}\\sqrt{45}}\\right)$', 'Use $\\cos\\theta=(\\mathbf v\\cdot\\mathbf w)/(\\|\\mathbf v\\|\\|\\mathbf w\\|)$.', ['$\\theta=\\cos^{-1}\\left(\\frac{44}{\\sqrt{62}\\sqrt{45}}\\right)$', '$\\theta=\\sin^{-1}\\left(\\frac{44}{\\sqrt{62}\\sqrt{45}}\\right)$', '$\\theta=\\cos^{-1}\\left(\\frac{44}{107}\\right)$', '$\\theta=\\cos^{-1}\\left(\\frac{-44}{\\sqrt{62}\\sqrt{45}}\\right)$']), ('Calc 3 — In-Class Quizzes', 'Quiz 1 — 12.1–12.3', 'Concept', 'If $\\mathbf v$ and $\\mathbf w$ are orthogonal and $c$ is nonzero, are $c\\mathbf v$ and $\\mathbf w$ still orthogonal?', 'Yes', '$(c\\mathbf v)\\cdot\\mathbf w=c(\\mathbf v\\cdot\\mathbf w)=0$.', ['Yes', 'No', 'Only if $c=1$', 'Only if $c>0$']), ('Calc 3 — In-Class Quizzes', 'Quiz A — 12.1–12.3', 'Calculation', 'Find the distance between $(4,-2,6)$ and the $xz$-plane.', '2', 'The $xz$-plane has $y=0$, so use the absolute value of the $y$-coordinate.', ['2', '4', '6', '$\\sqrt{56}$']), ('Calc 3 — In-Class Quizzes', 'Quiz A — 12.1–12.3', 'Concept', 'Determine whether $\\langle4,5,-2\\rangle$ and $\\langle3,-1,5\\rangle$ are orthogonal, parallel, or neither.', 'Neither', 'Their dot product is $-3$, and their components are not proportional.', ['Neither', 'Orthogonal', 'Parallel', 'Opposite vectors']), ('Calc 3 — In-Class Quizzes', 'Quiz A — 12.1–12.3', 'Calculation', 'Find the length of the projection of $\\langle1,-1,5\\rangle$ onto $\\langle a,b,c\\rangle$.', '$\\frac{|a-b+5c|}{\\sqrt{a^2+b^2+c^2}}$', 'Projection length is $|\\mathbf u\\cdot\\mathbf v|/\\|\\mathbf v\\|$.', ['$\\frac{|a-b+5c|}{\\sqrt{a^2+b^2+c^2}}$', '$\\frac{a-b+5c}{a^2+b^2+c^2}$', '$\\frac{|a+b+5c|}{\\sqrt{a^2+b^2+c^2}}$', '$|a-b+5c|\\sqrt{a^2+b^2+c^2}$']), ('Calc 3 — In-Class Quizzes', 'Quiz A — 12.1–12.3', 'Concept', 'For any vectors $\\mathbf v,\\mathbf w$, must there be positive $a,b$ such that $a\\mathbf v+b\\mathbf w=\\mathbf0$?', 'No', 'This can happen only for suitably opposite parallel vectors, not arbitrary vectors.', ['No', 'Yes', 'Only when $a=b$', 'Only for unit vectors']), ('Calc 3 — In-Class Quizzes', 'Quiz 2 — 12.4–12.5', 'Calculation', 'Compute $\\mathbf a\\times\\mathbf b$ using $\\begin{vmatrix}\\mathbf i&\\mathbf j&\\mathbf k\\\\3&3&-3\\\\3&-3&3\\end{vmatrix}$.', '$\\langle0,-18,-18\\rangle$', 'Expand the determinant and keep the negative sign on the $\\mathbf j$ component.', ['$\\langle0,-18,-18\\rangle$', '$\\langle0,18,18\\rangle$', '$\\langle18,0,-18\\rangle$', '$\\langle0,-18,18\\rangle$']), ('Calc 3 — In-Class Quizzes', 'Quiz 2 — 12.4–12.5', 'Calculation', 'Find where $x=2-2t$, $y=3t$, $z=1+t$ intersects $x+2y-z=7$.', '$(-2,6,3)$', 'Substitute the line into the plane, solve for $t$, then plug back into the line.', ['$(-2,6,3)$', '$(2,0,1)$', '$(-4,6,2)$', '$(-2,3,6)$']), ('Calc 3 — In-Class Quizzes', 'Quiz 2 — 12.4–12.5', 'Calculation', 'Find the plane through $(2,-1,3)$ with normal $\\langle0,1,2\\rangle$.', '$y+2z=5$', 'Use point-normal form.', ['$y+2z=5$', '$x+y+2z=7$', '$y+2z=6$', '$2y+z=5$']), ('Calc 3 — In-Class Quizzes', 'Quiz 2 — 12.4–12.5', 'Concept', 'For nonzero $\\mathbf v$ and nonzero scalar $a$, is $\\mathbf v\\times(a\\mathbf v)=a\\|\\mathbf v\\|^2$?', 'No', '$\\mathbf v$ and $a\\mathbf v$ are parallel, so their cross product is $\\mathbf0$.', ['No', 'Yes', 'Only if $a>0$', 'Only if $\\|\\mathbf v\\|=1$']), ('Calc 3 — In-Class Quizzes', 'Quiz B — 12.4–12.5', 'Calculation', 'Find the plane through the origin perpendicular to $x=1-8t$, $y=-1-7t$, $z=4+2t$.', '$-8x-7y+2z=0$', 'The line direction $\\langle-8,-7,2\\rangle$ is the plane normal.', ['$-8x-7y+2z=0$', '$8x+7y-2z=1$', '$-8x-7y+2z=4$', '$x+y+z=0$']), ('Calc 3 — In-Class Quizzes', 'Quiz B — 12.4–12.5', 'Calculation', 'For $P=(3,1,1)$, $Q=(5,2,4)$, $R=(8,5,3)$, find the area of triangle $PQR$.', '$\\frac{\\sqrt{230}}{2}$', 'Compute $\\frac12\\|\\overrightarrow{PQ}\\times\\overrightarrow{PR}\\|$.', ['$\\frac{\\sqrt{230}}{2}$', '$\\sqrt{230}$', '$115$', '$\\frac{\\sqrt{115}}{2}$']), ('Calc 3 — In-Class Quizzes', 'Quiz B — 12.4–12.5', 'Concept', 'Is there a unique plane through any three points in $\\mathbb R^3$?', 'No', 'Only three noncollinear points determine a unique plane.', ['No', 'Yes', 'Only if all coordinates are positive', 'Only if one point is the origin']), ('Calc 3 — In-Class Quizzes', 'Quiz B — 12.4–12.5', 'Calculation', 'Find a vector orthogonal to both $\\langle1,-1,2\\rangle$ and $\\langle0,x,x^2\\rangle$ using $\\begin{vmatrix}\\mathbf i&\\mathbf j&\\mathbf k\\\\1&-1&2\\\\0&x&x^2\\end{vmatrix}$.', '$\\langle-x^2-2x,-x^2,x\\rangle$', 'Take the symbolic cross product; remember the negative $\\mathbf j$ cofactor.', ['$\\langle-x^2-2x,-x^2,x\\rangle$', '$\\langle-x^2+2x,x^2,x\\rangle$', '$\\langle x^2+2x,-x^2,-x\\rangle$', '$\\langle-x^2-2x,x^2,x\\rangle$'])]
+    curriculum_cards.extend(in_class_quiz_cards)
+
     for subject,top,ctype,front,back,hint,choices in curriculum_cards:
         if not c.execute('SELECT 1 FROM cards WHERE subject=? AND front=?',(subject,front)).fetchone():
             packed='|||'.join(choices) if choices else None
@@ -447,6 +452,11 @@ def answers_match(user,expected):
 
 EXAM_SECTIONS={
     'Calc 3 — Exam 1': ['12.1','12.2','12.3','12.4','12.5','12.6','13.1'],
+    'Calc 3 — In-Class Quizzes': ['QUIZ_ALL'],
+    'In-Class — Quiz 1': ['QUIZ:Quiz 1'],
+    'In-Class — Quiz A': ['QUIZ:Quiz A'],
+    'In-Class — Quiz 2': ['QUIZ:Quiz 2'],
+    'In-Class — Quiz B': ['QUIZ:Quiz B'],
     'Calc 3 — Exam 2': ['13.2','13.3','13.4','14.1','14.2','14.3','14.4','14.5','14.6','14.7','14.8'],
     'Calc 3 — Exam 3': ['15.1','15.2','15.3','15.4','15.6','15.7','15.8','16.1','16.2','16.3','16.4'],
     'Calc 3 — Final Exam': ['12.1','12.2','12.3','12.4','12.5','12.6','13.1','13.2','13.3','13.4','14.1','14.2','14.3','14.4','14.5','14.6','14.7','14.8','15.1','15.2','15.3','15.4','15.6','15.7','15.8','16.1','16.2','16.3','16.4','16.5'],
@@ -456,6 +466,11 @@ def apply_exam_filter(d,exam):
     if exam=='All Material': return d
     secs=EXAM_SECTIONS.get(exam)
     if not secs: return d
+    if secs==['QUIZ_ALL']:
+        return d[d['subject'].astype(str).eq('Calc 3 — In-Class Quizzes')]
+    if len(secs)==1 and str(secs[0]).startswith('QUIZ:'):
+        qname=str(secs[0]).split(':',1)[1]
+        return d[(d['subject'].astype(str).eq('Calc 3 — In-Class Quizzes')) & d['topic'].astype(str).str.startswith(qname)]
     # The UNM exam filter intentionally removes textbook sections not assigned
     # for that exam, even if those cards remain available under All Material.
     mask=d['subject'].astype(str).str.startswith('Calc 3') & d['topic'].astype(str).apply(lambda x:any(x.startswith(sec) for sec in secs))
@@ -1019,7 +1034,7 @@ with st.sidebar:
             st.session_state.custom_quiz_ids=[]
             reset_study_session()
             st.rerun()
-    exam=st.selectbox('Study for', ['All Material','Calc 3 — Exam 1','Calc 3 — Exam 2','Calc 3 — Exam 3','Calc 3 — Final Exam'], help='Uses the UNM MATH 2531 exam coverage so you can study only the sections assigned to each exam.')
+    exam=st.selectbox('Study for', ['All Material','Calc 3 — Exam 1','Calc 3 — In-Class Quizzes','In-Class — Quiz 1','In-Class — Quiz A','In-Class — Quiz 2','In-Class — Quiz B','Calc 3 — Exam 2','Calc 3 — Exam 3','Calc 3 — Final Exam'], help='Uses the UNM MATH 2531 exam coverage so you can study only the sections assigned to each exam.')
     cd=apply_exam_filter(cards_df(),exam)
     subjects=['All']+sorted(cd.subject.unique(), key=natural_sort_key);subject=st.selectbox('Subject',subjects)
     fd=cd if subject=='All' else cd[cd.subject==subject];topics=['All']+sorted(fd.topic.unique(), key=natural_sort_key);topic=st.selectbox('Topic',topics)
@@ -1201,7 +1216,7 @@ with t2:
     b1,b2,b3=st.columns([1.25,1.25,1.5])
     browse_exam=b1.selectbox(
         'Exam filter',
-        ['All Material','Calc 3 — Exam 1','Calc 3 — Exam 2','Calc 3 — Exam 3','Calc 3 — Final Exam'],
+        ['All Material','Calc 3 — Exam 1','Calc 3 — In-Class Quizzes','In-Class — Quiz 1','In-Class — Quiz A','In-Class — Quiz 2','In-Class — Quiz B','Calc 3 — Exam 2','Calc 3 — Exam 3','Calc 3 — Final Exam'],
         key='browser_exam'
     )
     browse_pool=apply_exam_filter(all_cards,browse_exam)
