@@ -458,6 +458,20 @@ with t1:
                     st.session_state.review_queue.append({'card_id':int(vid),'due':next_step+delay,'stage':stage+1})
                 st.session_state.last_card=int(r.id);st.session_state.last_topic=str(r.topic);st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value='';st.session_state.current_review_stage=0;st.session_state.adaptive_note='';st.session_state.interactive_payload=None;st.session_state.interactive_payload_card=None;st.session_state.interactive_result=None;st.session_state.session_seen+=1;st.rerun()
 
+            def skip_to_needs_work():
+                # A skip is evidence that recall is not yet secure. Record it as a miss for
+                # weakness/adaptive scheduling, but do not count it as a submitted quiz answer.
+                stage=int(st.session_state.current_review_stage or 0)
+                record(r.id,'Wrong',1,'Skipped',stage)
+                st.session_state.perfect_streak=0
+                next_step=st.session_state.session_seen+1
+                st.session_state.review_queue.append({'card_id':int(r.id),'due':next_step+random.randint(3,5),'stage':max(1,stage+1)})
+                st.session_state.last_card=int(r.id);st.session_state.last_topic=str(r.topic);st.session_state.card_id=None
+                st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.mc_choice=None;st.session_state.fill_value=''
+                st.session_state.current_review_stage=0;st.session_state.adaptive_note='';st.session_state.interactive_payload=None
+                st.session_state.interactive_payload_card=None;st.session_state.interactive_result=None;st.session_state.session_seen+=1
+                st.rerun()
+
             # FLASHCARD MODE — self-rated, no objective streak scoring.
             if answer_style=='Flashcards':
                 face='back' if st.session_state.show_answer else ''
@@ -500,8 +514,11 @@ with t1:
                         st.latex(rf"\mathbf a={vector_latex(payload['a'])}\qquad \mathbf b={vector_latex(payload['b'])}")
                         st.latex(r"\mathbf a\cdot\mathbf b=\ ?")
                     elif kind=='cross':
-                        st.markdown('### Compute the cross product')
-                        st.latex(rf"\mathbf a={vector_latex(payload['a'])}\qquad \mathbf b={vector_latex(payload['b'])}")
+                        st.markdown('### Build the cross product from the determinant')
+                        a,b=payload['a'],payload['b']
+                        st.latex(rf"\mathbf a\times\mathbf b=\begin{{vmatrix}}\mathbf i&\mathbf j&\mathbf k\\{a[0]}&{a[1]}&{a[2]}\\{b[0]}&{b[1]}&{b[2]}\end{{vmatrix}}")
+                        st.caption('Cover the column for each component. Remember the sign pattern:  + i,  − j,  + k.')
+                        st.latex(rf"\mathbf i\left[({a[1]})({b[2]})-({a[2]})({b[1]})\right]-\mathbf j\left[({a[0]})({b[2]})-({a[2]})({b[0]})\right]+\mathbf k\left[({a[0]})({b[1]})-({a[1]})({b[0]})\right]")
                         st.latex(r"\mathbf a\times\mathbf b=\langle\ ?,\ ?,\ ?\ \rangle")
                     elif kind=='product':
                         st.markdown('### Build the product rule')
@@ -527,7 +544,17 @@ with t1:
                     if st.button('✓ Check Interactive Answer',type='primary',use_container_width=True,disabled=val is None):
                         correct_now=(int(val)==int(payload['answer']));response_desc=str(int(val));objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
                 elif kind=='cross':
-                    c1,c2,c3=st.columns(3);vi=c1.number_input('i component',step=1,value=None);vj=c2.number_input('j component',step=1,value=None);vk=c3.number_input('k component',step=1,value=None)
+                    a,b=payload['a'],payload['b']
+                    c1,c2,c3=st.columns(3)
+                    with c1:
+                        st.latex(rf"i:\ ({a[1]})({b[2]})-({a[2]})({b[1]})")
+                        vi=st.number_input('i component',step=1,value=None,key=f'cross_i_{r.id}')
+                    with c2:
+                        st.latex(rf"j:\ -\left[({a[0]})({b[2]})-({a[2]})({b[0]})\right]")
+                        vj=st.number_input('j component',step=1,value=None,key=f'cross_j_{r.id}')
+                    with c3:
+                        st.latex(rf"k:\ ({a[0]})({b[1]})-({a[1]})({b[0]})")
+                        vk=st.number_input('k component',step=1,value=None,key=f'cross_k_{r.id}')
                     if st.button('✓ Check Interactive Answer',type='primary',use_container_width=True,disabled=any(v is None for v in [vi,vj,vk])):
                         vals=[int(vi),int(vj),int(vk)];correct_now=(vals==payload['answer']);response_desc=str(vals);objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
                 elif kind=='product':
@@ -549,6 +576,10 @@ with t1:
                     a1,a2=st.columns(2);coef=a1.number_input('Coefficient',step=1,value=None);exp=a2.number_input('New exponent',step=1,value=None)
                     if st.button('✓ Check Interactive Answer',type='primary',use_container_width=True,disabled=coef is None or exp is None):
                         vals=[int(coef),int(exp)];correct_now=(vals==payload['answer']);response_desc=str(vals);objective_result(correct_now);st.session_state.interactive_result={'correct':correct_now,'response':response_desc};st.session_state.show_answer=True;st.rerun()
+
+                if not st.session_state.show_answer:
+                    if st.button('⏭ Skip — Mark Needs Work',use_container_width=True,help='Records this card as needing work and schedules it for a spaced review.'):
+                        skip_to_needs_work()
 
                 if st.session_state.show_answer and st.session_state.interactive_result:
                     rr=st.session_state.interactive_result;ok=bool(rr['correct']);cls='ok' if ok else 'no';msg='✅ Correct!' if ok else '❌ Not quite'

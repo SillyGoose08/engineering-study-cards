@@ -25,3 +25,8 @@ Interactive answers count toward the current quiz score and Perfect Streak. Miss
 pip install -r requirements.txt
 streamlit run app.py
 ```
+
+
+## Cross-product visual builder + Skip
+- Cross-product interactive questions now show the full i/j/k determinant, the +/−/+ expansion, and the exact two products used for each component.
+- Added **Skip — Mark Needs Work** in Interactive Practice. A skipped card is recorded as a weakness and automatically queued for a spaced review after 3–5 other questions; it does not count as a submitted quiz answer.
