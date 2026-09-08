@@ -479,8 +479,8 @@ def question_markup(raw):
     q=q.replace('90° (pi/2)',r'$90^\circ\;(\pi/2)$')
     q=q.replace('(cos theta, sin theta)',r'$(\cos\theta,\sin\theta)$')
     # Render common named mathematical symbols as notation in prose questions.
-    q=re.sub(r'(?<![A-Za-z\\])theta(?![A-Za-z])',r'$\theta$',q)
-    q=re.sub(r'(?<![A-Za-z\\])pi(?![A-Za-z])',r'$\pi$',q)
+    q=re.sub(r'(?<![A-Za-z\\])theta(?![A-Za-z])',lambda m:r'$\theta$',q)
+    q=re.sub(r'(?<![A-Za-z\\])pi(?![A-Za-z])',lambda m:r'$\pi$',q)
     return 'md',q
 
 def option_markup(raw):
