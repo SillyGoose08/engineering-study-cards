@@ -300,7 +300,10 @@ with t1:
                         st.markdown(f'<div class="hint">💡 {hint}</div>',unsafe_allow_html=True)
                     else:
                         st.markdown('#### Answer')
-                        st.latex(expr_latex(r.back)) if any(ch in str(r.back) for ch in '^/()') else st.markdown(f'### {esc(r.back)}')
+                        if any(ch in str(r.back) for ch in '^/()'):
+                            st.latex(expr_latex(r.back))
+                        else:
+                            st.markdown(f'### {esc(r.back)}')
                         st.caption(str(r.hint))
                 x,y=st.columns(2)
                 if x.button('💡 Hide Hint' if st.session_state.show_hint else '💡 Show Hint',use_container_width=True):st.session_state.show_hint=not st.session_state.show_hint;st.rerun()
@@ -343,7 +346,11 @@ with t1:
                     if st.session_state.show_answer and st.session_state.mc_choice is not None:
                         correct=(st.session_state.mc_choice==str(r.back));cls='correct-glow' if correct else 'wrong-glow';icon='✅ Correct!' if correct else '❌ Not quite'
                         st.markdown(f'<div class="quiz-answer {cls}"><strong>{icon}</strong></div>',unsafe_allow_html=True)
-                        st.markdown('**Correct answer:**');st.latex(expr_latex(r.back)) if any(ch in str(r.back) for ch in '^/()') else st.markdown(f'### {esc(r.back)}')
+                        st.markdown('**Correct answer:**')
+                        if any(ch in str(r.back) for ch in '^/()'):
+                            st.latex(expr_latex(r.back))
+                        else:
+                            st.markdown(f'### {esc(r.back)}')
                         if st.button('Next Question →',type='primary',use_container_width=True):advance('Correct' if correct else 'Wrong',5 if correct else 1,'Multiple Choice')
                 else:
                     st.markdown('#### Type your answer')
@@ -356,17 +363,22 @@ with t1:
                     if st.session_state.show_answer and st.session_state.fill_value:
                         correct=answers_match(st.session_state.fill_value,r.back);cls='correct-glow' if correct else 'wrong-glow';icon='✅ Correct!' if correct else '❌ Not quite'
                         st.markdown(f'<div class="quiz-answer {cls}"><strong>{icon}</strong><div class="small">Your answer: {esc(st.session_state.fill_value)}</div></div>',unsafe_allow_html=True)
-                        st.markdown('**Correct answer:**');st.latex(expr_latex(r.back)) if any(ch in str(r.back) for ch in '^/()') else st.markdown(f'### {esc(r.back)}')
+                        st.markdown('**Correct answer:**')
+                        if any(ch in str(r.back) for ch in '^/()'):
+                            st.latex(expr_latex(r.back))
+                        else:
+                            st.markdown(f'### {esc(r.back)}')
                         if st.button('Next Question →',type='primary',use_container_width=True):advance('Correct' if correct else 'Wrong',5 if correct else 1,'Fill in Blank')
         with right:
-            prog=min(100,100*st.session_state.session_seen/max(1,st.session_state.target))
+            shown_seen=min(st.session_state.session_seen,st.session_state.target)
+            prog=min(100,100*shown_seen/max(1,st.session_state.target))
             st.markdown(f'<div class="side"><div class="stitle">⏱ Current Session</div><div style="display:flex;justify-content:space-between"><div><div class="big">{elapsed(st.session_state.session_start)}</div><div class="small">Time</div></div><div><div class="big perfect">{st.session_state.perfect_streak} 🔥</div><div class="small">Perfect streak</div></div></div></div>',unsafe_allow_html=True)
             st.markdown(f'<div class="side"><div class="stitle">🏆 Record</div><div class="big perfect">{get_best_quiz_streak()}</div><div class="small">Best objective streak</div></div>',unsafe_allow_html=True)
             qs=sc.sort_values('weakness',ascending=False).head(4);items=''
             for _,z in qs.iterrows():
                 cl='high' if z.weakness>=70 else ('med' if z.weakness>=50 else 'low');pr='High Priority' if z.weakness>=70 else ('Medium Priority' if z.weakness>=50 else 'Low Priority');items+=f'<div class="qitem"><div class="qname">{esc(z.topic)}</div><div class="{cl}" style="font-size:10px;font-weight:800">{pr}</div></div>'
             st.markdown('<div class="side"><div class="stitle">Next Up</div>'+items+'</div>',unsafe_allow_html=True)
-            st.markdown(f'<div class="side"><div class="stitle">Session Progress</div><div class="big">{st.session_state.session_seen} / {st.session_state.target}</div><div class="prog"><div style="width:{prog:.0f}%"></div></div><div class="small" style="text-align:right;margin-top:5px">{prog:.0f}%</div></div>',unsafe_allow_html=True)
+            st.markdown(f'<div class="side"><div class="stitle">Session Progress</div><div class="big">{shown_seen} / {st.session_state.target}</div><div class="prog"><div style="width:{prog:.0f}%"></div></div><div class="small" style="text-align:right;margin-top:5px">{prog:.0f}%</div></div>',unsafe_allow_html=True)
 
 with t2:
     st.markdown('## Progress & Weakness Tracker');st.caption('Higher weakness means the card returns more aggressively.')
