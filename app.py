@@ -829,11 +829,44 @@ def wrong_answer_explanation(r):
     return f"The correct answer is **{a}**. Compare the structure of the question to the definition or formula used in this topic."
 
 
+
+def pick_custom(custom_ids, seen_ids=None):
+    """Return the next selected custom-quiz card without repeating until complete."""
+    ids=[int(x) for x in (custom_ids or [])]
+    if not ids:return None
+    d=stats()
+    d=d[d.id.isin(ids)].copy()
+    if d.empty:return None
+    seen=set(int(x) for x in (seen_ids or []))
+    unseen=d[~d.id.isin(seen)]
+    if unseen.empty:return None
+    # Preserve the order in which the user selected questions.
+    order={cid:i for i,cid in enumerate(ids)}
+    unseen['custom_order']=unseen.id.map(order)
+    return unseen.sort_values('custom_order').iloc[0]
+
+def reset_study_session():
+    st.session_state.session_start=now()
+    st.session_state.session_seen=0
+    st.session_state.session_seen_ids=[]
+    st.session_state.session_correct=0
+    st.session_state.session_quiz_answered=0
+    st.session_state.perfect_streak=0
+    st.session_state.card_id=None
+    st.session_state.last_card=None
+    st.session_state.show_answer=False
+    st.session_state.show_hint=False
+    st.session_state.mc_choice=None
+    st.session_state.mc_options=None
+    st.session_state.mc_options_card=None
+    st.session_state.fill_value=''
+
+
 def elapsed(s):
     t=datetime.fromisoformat(s);q=max(0,int((datetime.now(timezone.utc)-t).total_seconds()));return f'{q//60}:{q%60:02d}'
 
 init()
-for k,v in {'card_id':None,'show_answer':False,'show_hint':False,'sig':None,'session_start':now(),'session_seen':0,'session_seen_ids':[],'target':12,'last_card':None,'mc_choice':None,'mc_options':None,'mc_options_card':None,'answer_style':'Flashcards','session_correct':0,'session_quiz_answered':0,'perfect_streak':0,'fill_value':''}.items():
+for k,v in {'card_id':None,'show_answer':False,'show_hint':False,'sig':None,'session_start':now(),'session_seen':0,'session_seen_ids':[],'target':12,'last_card':None,'mc_choice':None,'mc_options':None,'mc_options_card':None,'answer_style':'Flashcards','session_correct':0,'session_quiz_answered':0,'perfect_streak':0,'fill_value':'','browser_index':0,'browser_selected_ids':[],'browser_options':{},'custom_quiz_active':False,'custom_quiz_ids':[]}.items():
     if k not in st.session_state:st.session_state[k]=v
 
 with st.sidebar:
@@ -847,6 +880,13 @@ with st.sidebar:
     answer_style=st.radio('Answer style',answer_style_options,index=answer_style_options.index(saved_answer_style),help='Perfect streaks count only objective quiz answers: Multiple Choice and Fill in Blank.')
     st.session_state.answer_style=answer_style
     mode=st.radio('Card order',['Weakest First','Missed Only','Random'])
+    if st.session_state.custom_quiz_active:
+        st.success(f"Custom Quiz Active · {len(st.session_state.custom_quiz_ids)} questions")
+        if st.button('Exit Custom Quiz',use_container_width=True):
+            st.session_state.custom_quiz_active=False
+            st.session_state.custom_quiz_ids=[]
+            reset_study_session()
+            st.rerun()
     exam=st.selectbox('Study for', ['All Material','Calc 3 — Exam 1','Calc 3 — Exam 2','Calc 3 — Exam 3','Calc 3 — Final Exam'], help='Uses the UNM MATH 2531 exam coverage so you can study only the sections assigned to each exam.')
     cd=apply_exam_filter(cards_df(),exam)
     subjects=['All']+sorted(cd.subject.unique(), key=natural_sort_key);subject=st.selectbox('Subject',subjects)
@@ -861,7 +901,7 @@ sig=(mode,exam,subject,topic,answer_style)
 if sig!=st.session_state.sig:st.session_state.sig=sig;st.session_state.card_id=None;st.session_state.show_answer=False;st.session_state.show_hint=False;st.session_state.session_seen_ids=[]
 
 st.markdown('<div class="brand"><div class="brain">🧠</div><div><h2>Engineering Study Cards</h2><div class="sub">Study smarter. Master faster.</div></div></div>',unsafe_allow_html=True)
-t1,t2,t3,t4=st.tabs(['🏠 Study','▥ Progress','▱ Decks','⚙ Settings'])
+t1,t2,t3,t4,t5=st.tabs(['🏠 Study','🔎 Question Browser','▥ Progress','▱ Decks','⚙ Settings'])
 
 with t1:
     st.markdown('<div class="hero"><div class="badge">🎯 Same Effort.<br>Bigger Results.</div><h1>Engineering Study Cards</h1><p>Adaptive flashcards that focus on what you need most.</p></div>',unsafe_allow_html=True)
@@ -870,14 +910,28 @@ with t1:
     if topic!='All':sc=sc[sc.topic==topic]
     a=int(sc.attempts.sum()) if len(sc) else 0;c=int(sc.correct.sum()) if len(sc) else 0;ac=100*c/a if a else 0;w=int((sc.weakness>=60).sum()) if len(sc) else 0;m=float(sc.mastery.mean()) if len(sc) else 0
     st.markdown(f'<div class="metrics"><div class="mcard"><div class="mlabel">📗 Total Attempts</div><div class="mval">{a}</div><div class="mfoot">Every answer improves your model</div></div><div class="mcard"><div class="mlabel">🎯 Accuracy</div><div class="mval">{ac:.0f}%</div><div class="mfoot">Correct across this filter</div></div><div class="mcard"><div class="mlabel">⚠️ Weak Cards</div><div class="mval">{w}</div><div class="mfoot">Priority score ≥ 60</div></div><div class="mcard"><div class="mlabel">🏆 Best Perfect Streak</div><div class="mval perfect">{get_best_quiz_streak()}</div><div class="mfoot">MCQ + fill-in answers</div></div></div>',unsafe_allow_html=True)
-    st.markdown(f'<div class="session-banner"><div class="session-stat"><strong>{exam}</strong><span>Study target</span></div><div class="session-stat"><strong>{answer_style}</strong><span>Current answer style</span></div><div class="session-stat"><strong>{st.session_state.session_correct}/{st.session_state.session_quiz_answered}</strong><span>Quiz score this session</span></div><div class="session-stat"><strong class="perfect">{st.session_state.perfect_streak} 🔥</strong><span>Current perfect streak</span></div><div class="session-stat"><strong>{elapsed(st.session_state.session_start)}</strong><span>Session time</span></div></div>',unsafe_allow_html=True)
+    study_target_label='Custom Quiz' if st.session_state.custom_quiz_active else exam
+    st.markdown(f'<div class="session-banner"><div class="session-stat"><strong>{study_target_label}</strong><span>Study target</span></div><div class="session-stat"><strong>{answer_style}</strong><span>Current answer style</span></div><div class="session-stat"><strong>{st.session_state.session_correct}/{st.session_state.session_quiz_answered}</strong><span>Quiz score this session</span></div><div class="session-stat"><strong class="perfect">{st.session_state.perfect_streak} 🔥</strong><span>Current perfect streak</span></div><div class="session-stat"><strong>{elapsed(st.session_state.session_start)}</strong><span>Session time</span></div></div>',unsafe_allow_html=True)
 
+    if st.session_state.custom_quiz_active:
+        st.session_state.target=max(1,len(st.session_state.custom_quiz_ids))
     if st.session_state.card_id is None:
-        r=pick(mode,exam,subject,topic,answer_style,st.session_state.last_card,st.session_state.session_seen_ids)
+        if st.session_state.custom_quiz_active:
+            r=pick_custom(st.session_state.custom_quiz_ids,st.session_state.session_seen_ids)
+        else:
+            r=pick(mode,exam,subject,topic,answer_style,st.session_state.last_card,st.session_state.session_seen_ids)
         if r is not None:st.session_state.card_id=int(r.id)
     cur=stats();cur=cur[cur.id==st.session_state.card_id]
     if cur.empty:
-        st.info('No cards match this combination. Try another subject/topic or answer style.')
+        if st.session_state.custom_quiz_active and st.session_state.custom_quiz_ids and len(st.session_state.session_seen_ids)>=len(st.session_state.custom_quiz_ids):
+            st.success(f"Custom quiz complete — {st.session_state.session_correct}/{st.session_state.session_quiz_answered} correct.")
+            c1,c2=st.columns(2)
+            if c1.button('Retry Custom Quiz',type='primary',use_container_width=True):
+                reset_study_session();st.rerun()
+            if c2.button('Return to Normal Study',use_container_width=True):
+                st.session_state.custom_quiz_active=False;st.session_state.custom_quiz_ids=[];reset_study_session();st.rerun()
+        else:
+            st.info('No cards match this combination. Try another subject/topic or answer style.')
     else:
         r=cur.iloc[0];left,right=st.columns([3.25,1],gap='large')
         with left:
@@ -1006,13 +1060,159 @@ with t1:
             st.markdown('<div class="side"><div class="stitle">Next Up</div>'+items+'</div>',unsafe_allow_html=True)
             st.markdown(f'<div class="side"><div class="stitle">Session Progress</div><div class="big">{shown_seen} / {st.session_state.target}</div><div class="prog"><div style="width:{prog:.0f}%"></div></div><div class="small" style="text-align:right;margin-top:5px">{prog:.0f}%</div></div>',unsafe_allow_html=True)
 
+
 with t2:
+    st.markdown('## Question Browser')
+    st.caption('Browse the deck exactly as questions will appear, then add any questions you want to a custom quiz.')
+
+    all_cards=cards_df().copy()
+    b1,b2,b3=st.columns([1.25,1.25,1.5])
+    browse_exam=b1.selectbox(
+        'Exam filter',
+        ['All Material','Calc 3 — Exam 1','Calc 3 — Exam 2','Calc 3 — Exam 3','Calc 3 — Final Exam'],
+        key='browser_exam'
+    )
+    browse_pool=apply_exam_filter(all_cards,browse_exam)
+
+    browse_subjects=['All']+sorted(browse_pool.subject.dropna().astype(str).unique().tolist(),key=natural_sort_key)
+    browse_subject=b2.selectbox('Subject',browse_subjects,key='browser_subject')
+    if browse_subject!='All':
+        browse_pool=browse_pool[browse_pool.subject==browse_subject]
+
+    browse_topics=['All']+sorted(browse_pool.topic.dropna().astype(str).unique().tolist(),key=natural_sort_key)
+    browse_topic=b3.selectbox('Topic',browse_topics,key='browser_topic')
+    if browse_topic!='All':
+        browse_pool=browse_pool[browse_pool.topic==browse_topic]
+
+    b4,b5=st.columns([2,1])
+    search_text=b4.text_input('Search questions',placeholder='Search wording, answer, or topic…',key='browser_search')
+    type_values=['All']+sorted(browse_pool.card_type.dropna().astype(str).unique().tolist(),key=natural_sort_key)
+    browse_type=b5.selectbox('Question type',type_values,key='browser_type')
+    if browse_type!='All':
+        browse_pool=browse_pool[browse_pool.card_type==browse_type]
+
+    if search_text.strip():
+        needle=search_text.strip().lower()
+        mask=(
+            browse_pool.front.astype(str).str.lower().str.contains(re.escape(needle),regex=True)
+            | browse_pool.back.astype(str).str.lower().str.contains(re.escape(needle),regex=True)
+            | browse_pool.topic.astype(str).str.lower().str.contains(re.escape(needle),regex=True)
+        )
+        browse_pool=browse_pool[mask]
+
+    browse_pool=browse_pool.sort_values(['subject','topic','id'],key=lambda s:s.map(natural_sort_key) if s.name in ['subject','topic'] else s).reset_index(drop=True)
+
+    if browse_pool.empty:
+        st.info('No questions match those browser filters.')
+    else:
+        # Keep browser position valid as filters change.
+        st.session_state.browser_index=max(0,min(int(st.session_state.browser_index),len(browse_pool)-1))
+        n=len(browse_pool)
+        nav1,nav2,nav3,nav4=st.columns([1,1,2.2,1])
+        if nav1.button('← Previous',use_container_width=True,disabled=st.session_state.browser_index<=0):
+            st.session_state.browser_index-=1;st.rerun()
+        if nav2.button('Next →',use_container_width=True,disabled=st.session_state.browser_index>=n-1):
+            st.session_state.browser_index+=1;st.rerun()
+        jump=nav3.number_input('Jump to question',min_value=1,max_value=n,value=st.session_state.browser_index+1,step=1,key='browser_jump')
+        if int(jump)-1 != st.session_state.browser_index:
+            st.session_state.browser_index=int(jump)-1;st.rerun()
+        nav4.metric('Matching',n)
+
+        br=browse_pool.iloc[st.session_state.browser_index]
+        st.caption(f"Question {st.session_state.browser_index+1} of {n} · Card ID {int(br.id)}")
+
+        # Presentation preview
+        with st.container(border=True):
+            st.markdown(f'<span class="pill">{esc(br.subject)}</span><span class="pill blue">{esc(br.topic)}</span>',unsafe_allow_html=True)
+            st.markdown('<div style="height:12px"></div>',unsafe_allow_html=True)
+            is_graph=str(br.front).startswith('GRAPH_MATCH|')
+            qkind,qvalue=question_markup(br.front)
+            if is_graph:
+                st.markdown('### Match the equation to the graph')
+                render_shape_graph(str(br.front).split('|',1)[1])
+            elif qkind=='latex':
+                st.latex(qvalue)
+            else:
+                st.markdown(f'### {qvalue}')
+
+            preview_short=is_short_fill(br)
+            if preview_short:
+                st.markdown('#### Type your answer')
+                st.text_input('Preview answer',placeholder='Student response field',disabled=True,key=f'preview_fill_{int(br.id)}',label_visibility='collapsed')
+            else:
+                opts_key=str(int(br.id))
+                if opts_key not in st.session_state.browser_options:
+                    st.session_state.browser_options[opts_key]=objective_choices(br,browse_exam,browse_subject,browse_topic)
+                preview_choices=list(st.session_state.browser_options[opts_key])
+                letters=['A','B','C','D'][:len(preview_choices)]
+                st.markdown('#### Choose the best answer')
+                for i,ch in enumerate(preview_choices):
+                    st.markdown(f"**{letters[i]}.** &nbsp;&nbsp; {option_markup(ch)}")
+                st.radio('Preview selection',letters,index=None,key=f'preview_mc_{int(br.id)}',horizontal=True,label_visibility='collapsed',disabled=True)
+
+        p1,p2,p3=st.columns([1.2,1.2,2])
+        selected_ids=[int(x) for x in st.session_state.browser_selected_ids]
+        is_selected=int(br.id) in selected_ids
+        if not is_selected:
+            if p1.button('➕ Add to Custom Quiz',type='primary',use_container_width=True):
+                st.session_state.browser_selected_ids=selected_ids+[int(br.id)]
+                st.rerun()
+        else:
+            if p1.button('✓ Selected',disabled=True,use_container_width=True):
+                pass
+            if p2.button('Remove',use_container_width=True):
+                st.session_state.browser_selected_ids=[x for x in selected_ids if x!=int(br.id)]
+                st.rerun()
+
+        show_key=f"browser_show_answer_{int(br.id)}"
+        show_ans=p3.toggle('Show correct answer / explanation',value=False,key=show_key)
+        if show_ans:
+            st.markdown('**Correct answer:**')
+            if any(ch in str(br.back) for ch in '^/()=<>' ) or any(tok in str(br.back).lower() for tok in ['theta','pi','sin','cos','sqrt']):
+                st.latex(expr_latex(br.back))
+            else:
+                st.markdown(f'### {esc(br.back)}')
+            st.markdown('**Explanation:**')
+            st.markdown(wrong_answer_explanation(br))
+
+        st.divider()
+        selected_ids=[int(x) for x in st.session_state.browser_selected_ids]
+        st.markdown(f"### Custom Quiz Builder · {len(selected_ids)} selected")
+        if selected_ids:
+            chosen=all_cards[all_cards.id.isin(selected_ids)].copy()
+            order={cid:i for i,cid in enumerate(selected_ids)}
+            chosen['order']=chosen.id.map(order)
+            chosen=chosen.sort_values('order')
+            with st.expander('Review selected questions',expanded=False):
+                for _,z in chosen.iterrows():
+                    c1,c2=st.columns([7,1])
+                    c1.markdown(f"**{int(z.id)} · {esc(z.topic)}** — {esc(str(z.front).replace('GRAPH_MATCH|','Graph: '))}")
+                    if c2.button('Remove',key=f"remove_custom_{int(z.id)}",use_container_width=True):
+                        st.session_state.browser_selected_ids=[x for x in selected_ids if x!=int(z.id)]
+                        st.rerun()
+
+            s1,s2=st.columns(2)
+            if s1.button(f'▶ Start Custom Quiz ({len(selected_ids)} questions)',type='primary',use_container_width=True):
+                st.session_state.custom_quiz_ids=list(selected_ids)
+                st.session_state.custom_quiz_active=True
+                st.session_state.answer_style='Mixed Quiz'
+                reset_study_session()
+                st.session_state.target=len(selected_ids)
+                st.rerun()
+            if s2.button('Clear Selection',use_container_width=True):
+                st.session_state.browser_selected_ids=[]
+                st.rerun()
+        else:
+            st.info('Add questions while browsing. Your selected questions will appear here and can be launched as a custom quiz.')
+
+
+with t3:
     st.markdown('## Progress & Weakness Tracker');st.caption('Higher weakness means the card returns more aggressively.')
     d=stats();g=d.groupby(['subject','topic'],as_index=False).agg(attempts=('attempts','sum'),correct=('correct','sum'),wrong=('wrong','sum'),avg_weakness=('weakness','mean'),avg_mastery=('mastery','mean'));g['accuracy']=g.apply(lambda r:100*r.correct/r.attempts if r.attempts else 0,axis=1);g['Topic']=g.subject+' · '+g.topic
     a,b=st.columns(2);a.bar_chart(g.set_index('Topic')['avg_mastery'],horizontal=True);b.dataframe(g.sort_values('avg_weakness',ascending=False)[['subject','topic','attempts','wrong','accuracy','avg_weakness']],use_container_width=True,hide_index=True)
     st.markdown('### Cards needing the most work');st.dataframe(d.sort_values(['weakness','wrong'],ascending=False)[['subject','topic','front','attempts','correct','wrong','accuracy','weakness']].head(20),use_container_width=True,hide_index=True)
 
-with t3:
+with t4:
     st.markdown('## Deck Manager')
     with st.form('add'):
         a,b,c=st.columns(3);subj=a.text_input('Subject',value='Calc 3');top=b.text_input('Topic');ctype=c.selectbox('Card type',['Flashcard','Multiple Choice','Fill in Blank','Recognition','Formula','Process','Concept','Practice']);front=st.text_area('Front / question');back=st.text_area('Back / answer');hint=st.text_input('Hint (optional)');choices=st.text_input('Multiple-choice options (optional, separate with |)')
@@ -1022,5 +1222,10 @@ with t3:
             else:st.error('Subject, topic, question, and answer are required.')
     st.dataframe(cards_df()[['subject','topic','card_type','front','back']],use_container_width=True,hide_index=True)
 
-with t4:
-    st.markdown('## Settings');st.session_state.target=st.slider('Cards per study session',5,40,int(st.session_state.target));st.info('Perfect streaks only count objectively graded Multiple Choice and Fill in Blank answers. Flashcard self-ratings still train the weakness model, but never affect the streak record. Progress is currently stored in local SQLite; Streamlit Community Cloud can reset local files during rebuilds.')
+with t5:
+    st.markdown('## Settings')
+    if not st.session_state.custom_quiz_active:
+        st.session_state.target=st.slider('Cards per study session',5,40,int(st.session_state.target))
+    else:
+        st.info(f'Custom quiz session length is fixed at {len(st.session_state.custom_quiz_ids)} selected questions.')
+    st.info('Perfect streaks only count objectively graded Multiple Choice and Fill in Blank answers. Flashcard self-ratings still train the weakness model, but never affect the streak record. Progress is currently stored in local SQLite; Streamlit Community Cloud can reset local files during rebuilds.')

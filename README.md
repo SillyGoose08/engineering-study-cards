@@ -58,3 +58,10 @@ Fixed the math-notation replacement crash caused by Python interpreting LaTeX ba
 - Incorrect multiple-choice answers now show a concise explanation of the correct answer.
 - High-value Calc 3 recognition rules are included for vectors, dot/cross products, lines/planes, quadrics, graph matching, critical numbers, and polar coordinates.
 - Correct answers remain fast and uncluttered.
+
+## Question Browser + Custom Quiz Builder
+- Added a Question Browser tab with exam, subject, topic, type, and text-search filters.
+- Browse one question at a time in its actual presentation format, including graph cards and MC answer banks.
+- Reveal the correct answer/explanation only when wanted.
+- Add/remove questions while browsing and launch the selected set as a custom quiz.
+- Custom quizzes preserve selection order, do not repeat questions, and show a completion score.
