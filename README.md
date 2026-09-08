@@ -80,3 +80,14 @@ Replaced tuple-based natural sort keys with string-only zero-padded keys for com
 - Added 10 numerical cross-product calculation questions to §12.4.
 - Each has controlled plausible answer choices and calculation-specific wrong-answer explanations.
 - These appear automatically under Calc 3 — Exam 1 and in the scrollable Question Browser.
+
+## Calc Review / Icebreaker flashcards
+- Added 33 flashcards based on the uploaded 4-page Calc Review Cards sheet.
+- Topics include chain rule/u-substitution, product rule/integration by parts, quotient rule, trig identities, power rules, L'Hopital, exponent/log rules, trig derivatives, and common algebra mistakes.
+- Cards are seeded without deleting existing progress and are browseable under Math Foundations.
+
+## Determinant-first cross products
+- Cross-product calculation cards now use the i-j-k determinant presentation.
+- Hints/feedback expand the determinant so it is visually clear which components multiply.
+- The negative j cofactor is shown explicitly.
+- Added determinant-form calculation cards to the Question Browser/custom-deck pool.
